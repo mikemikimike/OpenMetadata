@@ -223,6 +223,7 @@ export const msalMockProviderFixture: SsoProviderFixture = {
   supportsCrossTab: true,
   supportsSelfSignup: false,
   supportsSilentCallback: false,
+  supportsBrokenConfigCheck: true,
 
   isAvailable: () => true,
 

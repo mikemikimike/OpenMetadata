@@ -179,6 +179,7 @@ export const keycloakSamlProviderFixture: SsoProviderFixture = {
   supportsCrossTab: !IS_CROSSSITE,
   supportsSelfSignup: true,
   supportsSilentCallback: false,
+  supportsBrokenConfigCheck: true,
 
   signInButtonPattern: /(sign in|log in) with SAML SSO/i,
 

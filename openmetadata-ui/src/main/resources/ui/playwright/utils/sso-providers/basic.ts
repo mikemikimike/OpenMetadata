@@ -79,6 +79,9 @@ export const basicProviderFixture: SsoProviderFixture = {
   supportsCrossTab: false,
   supportsSelfSignup: false,
   supportsSilentCallback: false,
+  // Basic's client validator only requires `provider`; there is no field
+  // we can set to a client-invalid-yet-server-valid value.
+  supportsBrokenConfigCheck: false,
 
   isAvailable: () => true, // Always available — no external deps
 

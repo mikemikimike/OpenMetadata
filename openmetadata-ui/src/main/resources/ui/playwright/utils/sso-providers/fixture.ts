@@ -67,6 +67,18 @@ export interface SsoProviderFixture {
   supportsSelfSignup: boolean;
   /** true when the provider supports the /silent-callback iframe flow */
   supportsSilentCallback: boolean;
+  /**
+   * true when the fixture can produce a config that is client-invalid
+   * (the SPA validator flags it and renders ConfigErrorPage) BUT still
+   * server-valid (the PUT returns 200). Some providers can't:
+   *   - Basic: the client validator only requires `provider`, and setting
+   *     that to empty is nonsensical, so no "broken" client config exists.
+   *   - LDAP: the server's `@NotNull` on `ldapConfiguration.host` (and the
+   *     LDAP init that runs on `PUT`) reject both empty-string and delete
+   *     — server always rejects before the client sees the config.
+   * When false, scenarios 8 and 9 are `.skip()`'d for this provider.
+   */
+  supportsBrokenConfigCheck: boolean;
 
   // ── Env gating ──────────────────────────────────────────────────────────
 

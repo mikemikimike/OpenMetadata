@@ -427,6 +427,18 @@ for (const fixture of FIXTURES) {
       test('broken config renders ConfigErrorPage before IdP redirect', async ({
         page,
       }) => {
+        // Some providers can't produce a client-invalid-yet-server-valid
+        // config (Basic: validator only requires `provider`; LDAP: server
+        // `@NotNull` on `ldapConfiguration.host` rejects both empty and
+        // delete). See SsoProviderFixture.supportsBrokenConfigCheck.
+        if (!fixture.supportsBrokenConfigCheck) {
+          test.skip(
+            true,
+            `${fixture.slug} has no client-invalid-server-valid config path`
+          );
+
+          return;
+        }
         // `sharedApiContext` is session-bound and 401s once the provider
         // was swapped in beforeAll (JwtFilter.validateSessionProviderIsCurrent).
         // Build a fresh PAT-based context from the token minted before the
@@ -479,6 +491,16 @@ for (const fixture of FIXTURES) {
       test('broken config surfaces the specific field in a console.warn', async ({
         page,
       }) => {
+        // Same reason as scenario 8 — some providers can't produce a
+        // client-invalid-yet-server-valid config.
+        if (!fixture.supportsBrokenConfigCheck) {
+          test.skip(
+            true,
+            `${fixture.slug} has no client-invalid-server-valid config path`
+          );
+
+          return;
+        }
         // Same rationale as scenario 8 — `sharedApiContext` is
         // session-bound and 401s after the provider swap. Use the
         // pre-swap PAT to authenticate config writes.

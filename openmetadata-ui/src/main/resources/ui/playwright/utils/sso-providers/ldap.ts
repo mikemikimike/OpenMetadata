@@ -45,7 +45,15 @@ const buildValidConfig = () => ({
     clientId: '',
     callbackUrl: '',
     jwtPrincipalClaims: ['email'],
-    enableSelfSignup: false,
+    // MUST be true. LDAP mints the JWT on the OM side after a successful
+    // bind, but the OM `User` entity is created lazily via self-signup on
+    // first login. With `enableSelfSignup: false`, the backend returns
+    // 500 "Self Signup is not enabled" and no user is ever created — the
+    // whole scenario suite then fails scenario 1 at sidebar-timeout even
+    // though the /signin form itself rendered. Verified locally against
+    // a docker-networked backend + the openldap service in
+    // docker-compose.yml.
+    enableSelfSignup: true,
     ldapConfiguration: {
       host: LDAP_HOST_INTERNAL,
       port: LDAP_PORT,
@@ -98,6 +106,11 @@ export const ldapProviderFixture: SsoProviderFixture = {
   supportsCrossTab: false,
   supportsSelfSignup: false,
   supportsSilentCallback: false,
+  // LDAP server rejects both empty-string and delete on
+  // `ldapConfiguration.host` (400 "must not be null" / 500 "Failed to
+  // reload security system"). No client-invalid-server-valid config
+  // exists — verified locally against openldap + docker OM.
+  supportsBrokenConfigCheck: false,
 
   // The compose service is expected up when this profile runs; when it is
   // not, the container is unreachable and the configureBackend PUT will

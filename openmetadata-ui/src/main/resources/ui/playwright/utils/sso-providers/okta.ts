@@ -113,6 +113,7 @@ export const oktaProviderFixture: SsoProviderFixture = {
   supportsCrossTab: true,
   supportsSelfSignup: true,
   supportsSilentCallback: false,
+  supportsBrokenConfigCheck: true,
 
   signInButtonPattern: /(sign in|log in) with Okta/i,
 

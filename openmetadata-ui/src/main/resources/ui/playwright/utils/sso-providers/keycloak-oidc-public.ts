@@ -113,6 +113,7 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
   // Public OIDC is the only one that drives the /silent-callback iframe
   // via oidc-client's signinSilent — same-origin refresh with no popup.
   supportsSilentCallback: true,
+  supportsBrokenConfigCheck: true,
 
   expectedResponseType: 'code',
   signInButtonPattern: /(sign in|log in) with Keycloak/i,
