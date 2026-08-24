@@ -82,24 +82,12 @@ const buildValidConfig = () => ({
 
 const buildBrokenConfig = () => {
   const cfg = buildValidConfig();
-  // Drop `clientId` from `oidcConfiguration` per the fixture contract — the
-  // client-side validator must name this exact missing field before any
-  // MSAL client is instantiated.
-  const oidcConfig: Record<string, unknown> = {
-    id: MOCK_CLIENT_ID,
-    type: 'azure',
-    scope: 'openid email profile',
-    callbackUrl: 'http://localhost:8585/callback',
-    responseType: 'code',
-  };
-  // Intentionally omit clientId here.
-  delete oidcConfig.clientId;
-  (
-    cfg.authenticationConfiguration as Record<string, unknown>
-  ).oidcConfiguration = oidcConfig;
-  // Also drop the top-level clientId to make the missing-field branch
-  // reachable regardless of which layer the validator inspects first.
-  delete (cfg.authenticationConfiguration as Record<string, unknown>).clientId;
+  // Set top-level clientId to '' — the client validator's `isFieldMissing`
+  // flags empty strings as missing, but the server's Bean-Validation
+  // accepts a non-null empty string, so the PUT still returns 200 and the
+  // SPA gets to see the broken config. Deleting fields makes the server's
+  // `@NotNull` reject the PUT before the client validator ever runs.
+  (cfg.authenticationConfiguration as Record<string, unknown>).clientId = '';
 
   return cfg;
 };
@@ -271,7 +259,7 @@ export const msalMockProviderFixture: SsoProviderFixture = {
 
   async performLogout(page: Page) {
     await page.getByTestId('dropdown-profile').click();
-    await page.getByTestId('menu-item-logout').click();
+    await page.getByTestId('app-bar-item-logout').click();
     await expect(page).toHaveURL(/\/signin$/);
   },
 

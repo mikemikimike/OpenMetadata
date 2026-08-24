@@ -128,14 +128,17 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
   ): Promise<SsoBrokenConfigureResult> {
     const snapshot = await fetchSecurityConfig(apiContext);
     const payload = buildConfigPayload();
-    // Drop oidcConfiguration.discoveryUri — required for the server-side
-    // OIDC client to bootstrap. The validator must name this field.
+    // Force oidcConfiguration.responseType to an invalid value. The server
+    // accepts any string (200) but the client validator must reject it
+    // and render ConfigErrorPage. Deleting a required field like
+    // `discoveryUri` fails the server's `@NotNull` first — we can't test
+    // the client gate through that path.
     const authConfig = payload.authenticationConfiguration as Record<
       string,
       unknown
     >;
     const oidcConfig = authConfig.oidcConfiguration as Record<string, unknown>;
-    delete oidcConfig.discoveryUri;
+    oidcConfig.responseType = 'invalid';
 
     await applyProviderConfig(apiContext, snapshot, payload);
 
@@ -143,7 +146,7 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
       restore: async () => {
         await restoreSecurityConfig(apiContext, snapshot);
       },
-      expectedWarningPattern: /oidcConfiguration\.discoveryUri|discoveryUri/,
+      expectedWarningPattern: /oidcConfiguration\.responseType|responseType/,
     };
   },
 
@@ -161,7 +164,7 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
 
   async performLogout(page: Page) {
     await page.getByTestId('dropdown-profile').click();
-    await page.getByTestId('menu-item-logout').click();
+    await page.getByTestId('app-bar-item-logout').click();
     await expect(page).toHaveURL(/\/signin$/);
   },
 

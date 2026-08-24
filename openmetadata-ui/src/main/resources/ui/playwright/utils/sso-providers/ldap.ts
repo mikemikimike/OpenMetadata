@@ -159,7 +159,7 @@ export const ldapProviderFixture: SsoProviderFixture = {
 
   async performLogout(page: Page) {
     await page.getByTestId('dropdown-profile').click();
-    await page.getByTestId('menu-item-logout').click();
+    await page.getByTestId('app-bar-item-logout').click();
     await expect(page).toHaveURL(/\/signin$/);
   },
 

@@ -92,14 +92,12 @@ const buildValidConfig = () => ({
 
 const buildBrokenConfig = () => {
   const cfg = buildValidConfig();
-  // Drop `discoveryUri` from `oidcConfiguration` per the fixture contract.
-  // The client-side validator must name this exact missing field before
-  // any Auth0 client is instantiated.
-  const oidc = cfg.authenticationConfiguration.oidcConfiguration as Record<
-    string,
-    unknown
-  >;
-  delete oidc.discoveryUri;
+  // Set top-level clientId to '' — the client validator's `isFieldMissing`
+  // flags empty strings as missing, but the server's Bean-Validation
+  // accepts a non-null empty string, so the PUT still returns 200 and the
+  // SPA gets to see the broken config. Deleting fields makes the server's
+  // `@NotNull` reject the PUT before the client validator ever runs.
+  (cfg.authenticationConfiguration as Record<string, unknown>).clientId = '';
 
   return cfg;
 };
@@ -232,7 +230,7 @@ export const auth0MockProviderFixture: SsoProviderFixture = {
       restore: async () => {
         await restoreSecurityConfig(apiContext, snapshot);
       },
-      expectedWarningPattern: /discoveryUri/,
+      expectedWarningPattern: /clientId/,
     };
   },
 
@@ -250,7 +248,7 @@ export const auth0MockProviderFixture: SsoProviderFixture = {
 
   async performLogout(page: Page) {
     await page.getByTestId('dropdown-profile').click();
-    await page.getByTestId('menu-item-logout').click();
+    await page.getByTestId('app-bar-item-logout').click();
     await expect(page).toHaveURL(/\/signin$/);
   },
 
