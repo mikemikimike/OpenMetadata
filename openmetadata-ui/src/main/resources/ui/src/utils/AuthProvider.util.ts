@@ -207,6 +207,7 @@ export const getAuthConfig = (
       };
 
       break;
+    // eslint-disable-next-line sonarjs/no-duplicated-branches -- distinct auth provider; config kept separate
     case AuthProvider.AwsCognito:
       config = {
         authority,
