@@ -14,14 +14,25 @@ name: SSO Login Nightly
 on:
   schedule:
     - cron: '0 3 * * *'
-  # PR trigger intentionally removed — the SsoScenarios matrix still has
-  # open blockers (server-side @NotNull rejects the broken-config PUTs,
-  # and login flow for several fixtures fails in ways that need local
-  # reproduction to diagnose). Leaving the workflow on `pull_request`
-  # would gate every PR on tests we know don't pass yet. Nightly and
-  # manual dispatch remain, so the matrix can be stabilized in follow-up
-  # work without blocking PRs against this branch. Restore the
-  # `pull_request:` block below once the matrix is green on nightly.
+  # PR gate: runs whenever a PR touches auth code — every provider fixture
+  # SELF-GATES on required secrets via SsoProviderFixture.isAvailable(), so
+  # legs that need a live tenant (okta) skip cleanly on fork PRs without
+  # secrets rather than failing the workflow. Same is true for Keycloak
+  # legs when the required env vars aren't set. The wasted docker startup
+  # for those legs is accepted — the job still passes with tests skipped
+  # and the report surfaces the reason.
+  pull_request:
+    paths:
+      - 'openmetadata-ui/src/main/resources/ui/src/components/Auth/**'
+      - 'openmetadata-ui/src/main/resources/ui/src/utils/Auth/**'
+      - 'openmetadata-ui/src/main/resources/ui/src/hooks/useApplicationStore.ts'
+      - 'openmetadata-ui/src/main/resources/ui/src/AppRoot.tsx'
+      - 'openmetadata-ui/src/main/resources/ui/src/index.tsx'
+      - 'openmetadata-ui/src/main/resources/ui/playwright/e2e/Auth/**'
+      - 'openmetadata-ui/src/main/resources/ui/playwright/utils/sso-providers/**'
+      - 'docker/development/docker-compose.yml'
+      - 'docker/development/openldap/**'
+      - '.github/workflows/playwright-sso-login-nightly.yml'
   workflow_dispatch:
     inputs:
       sso_provider:
