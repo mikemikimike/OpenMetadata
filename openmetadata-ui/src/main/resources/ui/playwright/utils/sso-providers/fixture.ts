@@ -68,6 +68,16 @@ export interface SsoProviderFixture {
   /** true when the provider supports the /silent-callback iframe flow */
   supportsSilentCallback: boolean;
   /**
+   * true when the provider drives silent refresh through a client-visible
+   * `GET /api/v1/auth/refresh` call (public OIDC / MSAL / Auth0 / Okta).
+   * false when refresh is server-side and cookie-driven (Basic, LDAP,
+   * confidential OIDC, SAML). Scenarios 3 (silent refresh) and 5
+   * (cross-tab refresh coalesces) both wait for that response and time
+   * out on session-based providers even though auth itself works. Verified
+   * locally against docker OM + keycloak-saml.
+   */
+  supportsObservableRefresh: boolean;
+  /**
    * true when the fixture can produce a config that is client-invalid
    * (the SPA validator flags it and renders ConfigErrorPage) BUT still
    * server-valid (the PUT returns 200). Some providers can't:

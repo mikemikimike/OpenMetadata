@@ -222,18 +222,15 @@ for (const fixture of FIXTURES) {
       test('silent refresh recovers an expired token', async ({ page }) => {
         test.slow();
 
-        // Basic/LDAP maintain auth via a server-side session cookie in
-        // addition to the localStorage JWT. When the JWT is clobbered,
-        // the SPA re-uses the cookie and NEVER issues an observable
-        // `GET /api/v1/auth/refresh` — which is what this test waits on.
-        // The observable silent-refresh handshake only runs for
-        // cross-tab-capable IdP flows (OIDC/MSAL/etc). Verified locally
-        // against docker OM: reload after mangling the JWT for Basic
-        // fires zero network calls and still renders the sidebar.
-        if (!fixture.supportsCrossTab) {
+        // Session-based providers (Basic/LDAP/confidential OIDC/SAML)
+        // refresh their auth server-side via cookie; there is no
+        // client-visible `GET /api/v1/auth/refresh`, so this test can
+        // never observe one. See supportsObservableRefresh on the
+        // fixture. Verified locally against docker OM + keycloak-saml.
+        if (!fixture.supportsObservableRefresh) {
           test.skip(
             true,
-            `${fixture.slug} auth doesn't use an observable /auth/refresh roundtrip`
+            `${fixture.slug} refreshes server-side (no observable /auth/refresh)`
           );
 
           return;
@@ -302,8 +299,15 @@ for (const fixture of FIXTURES) {
       }) => {
         test.slow();
 
-        if (!fixture.supportsCrossTab) {
-          test.skip(true, `${fixture.slug} skipped: no cross-tab lock`);
+        // Requires both cross-tab storage AND an observable
+        // /auth/refresh — see the fixture flags. Session-cookie
+        // providers refresh server-side and never fire the call this
+        // test counts.
+        if (!fixture.supportsCrossTab || !fixture.supportsObservableRefresh) {
+          test.skip(
+            true,
+            `${fixture.slug} skipped: no cross-tab observable refresh`
+          );
         }
 
         const context = await browser.newContext();

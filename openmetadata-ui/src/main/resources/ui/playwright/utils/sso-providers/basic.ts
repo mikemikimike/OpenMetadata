@@ -82,6 +82,7 @@ export const basicProviderFixture: SsoProviderFixture = {
   // Basic's client validator only requires `provider`; there is no field
   // we can set to a client-invalid-yet-server-valid value.
   supportsBrokenConfigCheck: false,
+  supportsObservableRefresh: false,
 
   isAvailable: () => true, // Always available — no external deps
 

@@ -105,6 +105,7 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
   supportsSelfSignup: true,
   supportsSilentCallback: false,
   supportsBrokenConfigCheck: true,
+  supportsObservableRefresh: false,
 
   signInButtonPattern: /(sign in|log in) with Keycloak/i,
 
@@ -128,17 +129,18 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
   ): Promise<SsoBrokenConfigureResult> {
     const snapshot = await fetchSecurityConfig(apiContext);
     const payload = buildConfigPayload();
-    // Force oidcConfiguration.responseType to an invalid value. The server
-    // accepts any string (200) but the client validator must reject it
-    // and render ConfigErrorPage. Deleting a required field like
-    // `discoveryUri` fails the server's `@NotNull` first — we can't test
-    // the client gate through that path.
+    // Confidential OIDC's client validator checks `clientId`
+    // (validateAuthFieldsDetailed's REQUIRED_FIELDS_BY_PROVIDER) but
+    // NOT `oidcConfiguration.responseType`, so the responseType='invalid'
+    // trick that works for the public client doesn't fire ConfigErrorPage
+    // here. Set clientId to empty-string instead — server accepts non-null,
+    // client `isFieldMissing` flags it. Deleting the field fails the
+    // server's `@NotNull` first.
     const authConfig = payload.authenticationConfiguration as Record<
       string,
       unknown
     >;
-    const oidcConfig = authConfig.oidcConfiguration as Record<string, unknown>;
-    oidcConfig.responseType = 'invalid';
+    authConfig.clientId = '';
 
     await applyProviderConfig(apiContext, snapshot, payload);
 
@@ -146,7 +148,7 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
       restore: async () => {
         await restoreSecurityConfig(apiContext, snapshot);
       },
-      expectedWarningPattern: /oidcConfiguration\.responseType|responseType/,
+      expectedWarningPattern: /clientId/,
     };
   },
 
