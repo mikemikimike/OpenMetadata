@@ -222,6 +222,23 @@ for (const fixture of FIXTURES) {
       test('silent refresh recovers an expired token', async ({ page }) => {
         test.slow();
 
+        // Basic/LDAP maintain auth via a server-side session cookie in
+        // addition to the localStorage JWT. When the JWT is clobbered,
+        // the SPA re-uses the cookie and NEVER issues an observable
+        // `GET /api/v1/auth/refresh` — which is what this test waits on.
+        // The observable silent-refresh handshake only runs for
+        // cross-tab-capable IdP flows (OIDC/MSAL/etc). Verified locally
+        // against docker OM: reload after mangling the JWT for Basic
+        // fires zero network calls and still renders the sidebar.
+        if (!fixture.supportsCrossTab) {
+          test.skip(
+            true,
+            `${fixture.slug} auth doesn't use an observable /auth/refresh roundtrip`
+          );
+
+          return;
+        }
+
         await fixture.performLogin(page);
         await fixture.forceTokenExpiry(page);
 
