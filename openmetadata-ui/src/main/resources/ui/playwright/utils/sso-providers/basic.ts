@@ -20,7 +20,10 @@ import { SsoBrokenConfigureResult, SsoProviderFixture } from './fixture';
 
 // Static admin credentials used by every Basic-provider suite. The seeded
 // database ships with this exact pair, so no per-run signup is needed.
-const ADMIN_EMAIL = 'admin@openmetadata.org';
+// NOTE the hyphenated domain — this is the seeded admin's actual email;
+// `admin@openmetadata.org` (no hyphen) is a real trap that surfaces as
+// a form-fill success followed by a silent sidebar timeout.
+const ADMIN_EMAIL = 'admin@open-metadata.org';
 const ADMIN_PASSWORD = 'admin';
 
 const buildValidConfig = () => ({
@@ -30,14 +33,18 @@ const buildValidConfig = () => ({
     providerName: 'basic',
     publicKeyUrls: ['http://localhost:8585/api/v1/system/config/jwks'],
     tokenValidationAlgorithm: 'RS256',
-    authority: 'https://openmetadata.org',
+    authority: 'https://open-metadata.org',
     clientId: 'openmetadata',
     callbackUrl: 'http://localhost:8585/callback',
     jwtPrincipalClaims: ['email', 'preferred_username', 'sub'],
     enableSelfSignup: false,
   },
   authorizerConfiguration: {
-    principalDomain: 'openmetadata.org',
+    // Must match the seeded admin's email domain (open-metadata.org, WITH
+    // the hyphen). Overriding to a mismatched domain breaks the admin's
+    // authorization check on `principalDomain` even though the form login
+    // succeeds — visible in CI as "sidebar never renders after sign-in".
+    principalDomain: 'open-metadata.org',
     adminPrincipals: ['admin'],
   },
 });

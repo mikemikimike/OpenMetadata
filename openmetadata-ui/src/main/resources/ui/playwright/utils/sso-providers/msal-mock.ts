@@ -42,7 +42,11 @@ import { mintMockJwt } from './mock-token';
 // Deterministic identity for the mocked login. Matches an admin the seeded
 // database recognises so the /users/loggedInUser fetch succeeds after
 // isAuthenticated flips true.
-const MOCK_EMAIL = 'admin@openmetadata.org';
+// Must be the seeded admin's actual email (hyphenated domain) so the
+// SPA's post-mock-login GET /users/loggedInUser resolves — mismatched
+// email produces a valid JWT but a 404 on user lookup, visible in CI
+// as a sidebar-timeout on scenario 1.
+const MOCK_EMAIL = 'admin@open-metadata.org';
 const MOCK_NAME = 'MSAL Mock Admin';
 const MOCK_SUB = 'msal-mock-admin';
 const MOCK_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -70,7 +74,8 @@ const buildValidConfig = () => ({
     enableSelfSignup: false,
   },
   authorizerConfiguration: {
-    principalDomain: 'openmetadata.org',
+    // Hyphenated to match the seeded admin's email domain — see MOCK_EMAIL.
+    principalDomain: 'open-metadata.org',
     adminPrincipals: ['admin'],
   },
 });

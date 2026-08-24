@@ -39,7 +39,11 @@ import {
 import { SsoBrokenConfigureResult, SsoProviderFixture } from './fixture';
 import { mintMockJwt } from './mock-token';
 
-const MOCK_EMAIL = 'admin@openmetadata.org';
+// Must be the seeded admin's actual email (hyphenated domain) so the
+// SPA's post-mock-login GET /users/loggedInUser resolves — mismatched
+// email produces a valid JWT but a 404 on user lookup, visible in CI
+// as a sidebar-timeout on scenario 1.
+const MOCK_EMAIL = 'admin@open-metadata.org';
 const MOCK_NAME = 'Auth0 Mock Admin';
 const MOCK_SUB = 'auth0|mock-admin';
 const MOCK_DOMAIN = 'openmetadata-mock.us.auth0.com';
@@ -80,7 +84,8 @@ const buildValidConfig = () => ({
     },
   },
   authorizerConfiguration: {
-    principalDomain: 'openmetadata.org',
+    // Hyphenated to match the seeded admin's email domain — see MOCK_EMAIL.
+    principalDomain: 'open-metadata.org',
     adminPrincipals: ['admin'],
   },
 });
