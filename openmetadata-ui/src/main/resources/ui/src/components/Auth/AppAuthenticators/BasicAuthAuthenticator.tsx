@@ -33,7 +33,7 @@ import {
   setRefreshToken,
 } from '../../../utils/SwTokenStorageUtils';
 import Loader from '../../common/Loader/Loader';
-import { useBasicAuth } from '../AuthProviders/BasicAuthProvider';
+import { useBasicAuth } from '../AuthProviders/BasicAuthContext';
 
 interface BasicAuthenticatorInterface {
   children: ReactNode;
