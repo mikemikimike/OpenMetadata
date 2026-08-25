@@ -37,6 +37,7 @@ import {
   restoreSecurityConfig,
 } from '../ssoAuth';
 import { SsoBrokenConfigureResult, SsoProviderFixture } from './fixture';
+import { forceTokenExpiry } from './force-token-expiry';
 import { mintMockJwt } from './mock-token';
 
 // Deterministic identity for the mocked login. Matches an admin the seeded
@@ -263,21 +264,5 @@ export const msalMockProviderFixture: SsoProviderFixture = {
     await expect(page).toHaveURL(/\/signin$/);
   },
 
-  async forceTokenExpiry(page: Page) {
-    // Same JWT-mangle technique as basic.ts — mangle `exp` in the stored
-    // token so the coordinator's next decode sees it as expired and calls
-    // into the mock's `acquireTokenSilent`, which mints a fresh JWT.
-    await page.evaluate(() => {
-      const raw = localStorage.getItem('oidcIdToken');
-      if (!raw) return;
-      const [header, , sig] = raw.split('.');
-      const payload = { exp: Math.floor(Date.now() / 1000) - 60 };
-      const b64 = (obj: unknown) =>
-        btoa(JSON.stringify(obj))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
-      localStorage.setItem('oidcIdToken', `${header}.${b64(payload)}.${sig}`);
-    });
-  },
+  forceTokenExpiry,
 };

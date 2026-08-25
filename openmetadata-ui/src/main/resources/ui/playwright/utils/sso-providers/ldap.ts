@@ -17,6 +17,7 @@ import {
   restoreSecurityConfig,
 } from '../ssoAuth';
 import { SsoBrokenConfigureResult, SsoProviderFixture } from './fixture';
+import { forceTokenExpiry } from './force-token-expiry';
 
 // Credentials for the LDIF-seeded user. Must match
 // docker/development/openldap/bootstrap.ldif exactly — the OpenLDAP container
@@ -163,24 +164,5 @@ export const ldapProviderFixture: SsoProviderFixture = {
     await expect(page).toHaveURL(/\/signin$/);
   },
 
-  async forceTokenExpiry(page: Page) {
-    // Same JWT-mangle as basic.ts. LDAP mints a locally-signed OM JWT (there
-    // is no IdP session to invalidate remotely), so clobbering `exp` in
-    // storage is sufficient — the next API call will 401 and the coordinator
-    // will attempt a refresh against the local /auth/refresh endpoint.
-    await page.evaluate(() => {
-      const raw = localStorage.getItem('oidcIdToken');
-      if (!raw) {
-        return;
-      }
-      const [header, , sig] = raw.split('.');
-      const payload = { exp: Math.floor(Date.now() / 1000) - 60 };
-      const b64 = (obj: unknown) =>
-        btoa(JSON.stringify(obj))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
-      localStorage.setItem('oidcIdToken', `${header}.${b64(payload)}.${sig}`);
-    });
-  },
+  forceTokenExpiry,
 };

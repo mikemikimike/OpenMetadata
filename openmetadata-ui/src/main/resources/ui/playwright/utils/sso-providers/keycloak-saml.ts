@@ -24,6 +24,7 @@ import {
   SsoProviderFixture,
   SsoProviderSlug,
 } from './fixture';
+import { forceTokenExpiry } from './force-token-expiry';
 import type { ProviderHelper } from './index';
 import { fetchIdpX509Certificate } from './saml-metadata';
 
@@ -242,21 +243,5 @@ export const keycloakSamlProviderFixture: SsoProviderFixture = {
     await expect(page).toHaveURL(/\/signin$/);
   },
 
-  async forceTokenExpiry(page: Page) {
-    // Clobber `exp` claim in the stored JWT so the coordinator's next
-    // decode sees it as expired. Same technique the SilentRefresh spec
-    // uses — kept per-fixture so each provider stays self-contained.
-    await page.evaluate(() => {
-      const raw = localStorage.getItem('oidcIdToken');
-      if (!raw) return;
-      const [header, , sig] = raw.split('.');
-      const payload = { exp: Math.floor(Date.now() / 1000) - 60 };
-      const b64 = (obj: unknown) =>
-        btoa(JSON.stringify(obj))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
-      localStorage.setItem('oidcIdToken', `${header}.${b64(payload)}.${sig}`);
-    });
-  },
+  forceTokenExpiry,
 };

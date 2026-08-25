@@ -17,6 +17,7 @@ import {
   restoreSecurityConfig,
 } from '../ssoAuth';
 import { SsoBrokenConfigureResult, SsoProviderFixture } from './fixture';
+import { forceTokenExpiry } from './force-token-expiry';
 
 // Static admin credentials used by every Basic-provider suite. The seeded
 // database ships with this exact pair, so no per-run signup is needed.
@@ -132,22 +133,5 @@ export const basicProviderFixture: SsoProviderFixture = {
     await expect(page).toHaveURL(/\/signin$/);
   },
 
-  async forceTokenExpiry(page: Page) {
-    // Clobber `exp` claim in the stored JWT so the coordinator's next
-    // decode sees it as expired. Same technique the SilentRefresh spec
-    // uses on the refactor branch — kept here so per-provider fixtures
-    // stay self-contained.
-    await page.evaluate(() => {
-      const raw = localStorage.getItem('oidcIdToken');
-      if (!raw) return;
-      const [header, , sig] = raw.split('.');
-      const payload = { exp: Math.floor(Date.now() / 1000) - 60 };
-      const b64 = (obj: unknown) =>
-        btoa(JSON.stringify(obj))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
-      localStorage.setItem('oidcIdToken', `${header}.${b64(payload)}.${sig}`);
-    });
-  },
+  forceTokenExpiry,
 };

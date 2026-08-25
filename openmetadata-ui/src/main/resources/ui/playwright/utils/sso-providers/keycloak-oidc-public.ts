@@ -19,6 +19,7 @@ import {
   restoreSecurityConfig,
 } from '../ssoAuth';
 import { SsoBrokenConfigureResult, SsoProviderFixture } from './fixture';
+import { forceTokenExpiry } from './force-token-expiry';
 import { ProviderHelper } from './index';
 import {
   assertSupportedBaseUrl,
@@ -175,18 +176,5 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
     await expect(page).toHaveURL(/\/signin$/);
   },
 
-  async forceTokenExpiry(page: Page) {
-    await page.evaluate(() => {
-      const raw = localStorage.getItem('oidcIdToken');
-      if (!raw) return;
-      const [header, , sig] = raw.split('.');
-      const payload = { exp: Math.floor(Date.now() / 1000) - 60 };
-      const b64 = (obj: unknown) =>
-        btoa(JSON.stringify(obj))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=+$/, '');
-      localStorage.setItem('oidcIdToken', `${header}.${b64(payload)}.${sig}`);
-    });
-  },
+  forceTokenExpiry,
 };
