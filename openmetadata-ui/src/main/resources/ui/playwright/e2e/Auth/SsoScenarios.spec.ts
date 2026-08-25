@@ -222,20 +222,6 @@ for (const fixture of FIXTURES) {
       test('silent refresh recovers an expired token', async ({ page }) => {
         test.slow();
 
-        // Session-based providers (Basic/LDAP/confidential OIDC/SAML)
-        // refresh their auth server-side via cookie; there is no
-        // client-visible `GET /api/v1/auth/refresh`, so this test can
-        // never observe one. See supportsObservableRefresh on the
-        // fixture. Verified locally against docker OM + keycloak-saml.
-        if (!fixture.supportsObservableRefresh) {
-          test.skip(
-            true,
-            `${fixture.slug} refreshes server-side (no observable /auth/refresh)`
-          );
-
-          return;
-        }
-
         await fixture.performLogin(page);
         await fixture.forceTokenExpiry(page);
 
@@ -299,15 +285,8 @@ for (const fixture of FIXTURES) {
       }) => {
         test.slow();
 
-        // Requires both cross-tab storage AND an observable
-        // /auth/refresh — see the fixture flags. Session-cookie
-        // providers refresh server-side and never fire the call this
-        // test counts.
-        if (!fixture.supportsCrossTab || !fixture.supportsObservableRefresh) {
-          test.skip(
-            true,
-            `${fixture.slug} skipped: no cross-tab observable refresh`
-          );
+        if (!fixture.supportsCrossTab) {
+          test.skip(true, `${fixture.slug} skipped: no cross-tab lock`);
         }
 
         const context = await browser.newContext();

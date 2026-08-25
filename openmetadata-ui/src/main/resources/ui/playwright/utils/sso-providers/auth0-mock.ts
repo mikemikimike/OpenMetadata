@@ -204,7 +204,6 @@ export const auth0MockProviderFixture: SsoProviderFixture = {
   supportsSelfSignup: false,
   supportsSilentCallback: false,
   supportsBrokenConfigCheck: true,
-  supportsObservableRefresh: true,
 
   isAvailable: () => true,
 

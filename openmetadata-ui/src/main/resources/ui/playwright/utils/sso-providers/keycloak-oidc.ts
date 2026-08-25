@@ -105,7 +105,6 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
   supportsSelfSignup: true,
   supportsSilentCallback: false,
   supportsBrokenConfigCheck: true,
-  supportsObservableRefresh: false,
 
   signInButtonPattern: /(sign in|log in) with Keycloak/i,
 
