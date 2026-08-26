@@ -180,7 +180,12 @@ export const keycloakSamlProviderFixture: SsoProviderFixture = {
   supportsCrossTab: !IS_CROSSSITE,
   supportsSelfSignup: true,
   supportsSilentCallback: false,
-  supportsBrokenConfigCheck: true,
+  // SAML's public config endpoint strips `samlConfiguration.*` (server-side
+  // secrets), and `getAuthConfig` omits `providerName` from the SAML shape,
+  // so `REQUIRED_FIELDS_BY_PROVIDER[Saml]` is just `['provider']`. There is
+  // no top-level field we can meaningfully break to trigger ConfigErrorPage
+  // without also breaking the sign-in flow itself — skip scenarios 8/9.
+  supportsBrokenConfigCheck: false,
 
   signInButtonPattern: /(sign in|log in) with SAML SSO/i,
 

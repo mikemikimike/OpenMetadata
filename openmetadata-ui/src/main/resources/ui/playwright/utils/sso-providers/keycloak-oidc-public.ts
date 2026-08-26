@@ -139,14 +139,16 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
   ): Promise<SsoBrokenConfigureResult> {
     const snapshot = await fetchSecurityConfig(apiContext);
     const payload = buildConfigPayload();
-    // Force oidcConfiguration.responseType to an invalid value so the
-    // client-side validator refuses to boot the UserManager.
+    // Empty out `clientId` at the top level. The public config endpoint
+    // exposes `clientId` but strips nested `oidcConfiguration.*`, so a
+    // nested mangling wouldn't reach the client-side validator. Server's
+    // Bean-Validation accepts non-null empty; client's `isFieldMissing`
+    // flags it.
     const authConfig = payload.authenticationConfiguration as Record<
       string,
       unknown
     >;
-    const oidcConfig = authConfig.oidcConfiguration as Record<string, unknown>;
-    oidcConfig.responseType = 'invalid';
+    authConfig.clientId = '';
 
     await applyProviderConfig(apiContext, snapshot, payload);
 
@@ -154,7 +156,7 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
       restore: async () => {
         await restoreSecurityConfig(apiContext, snapshot);
       },
-      expectedWarningPattern: /oidcConfiguration\.responseType|responseType/,
+      expectedWarningPattern: /clientId/,
     };
   },
 

@@ -150,33 +150,6 @@ export const ldapProviderFixture: SsoProviderFixture = {
 
   async performLogin(page: Page) {
     await page.goto('/signin');
-    // CI-only diagnostic: locally this waits 200ms and the email input is
-    // there; in CI scenarios 1/2/3/6 all fail at the `getByLabel` step
-    // because the SPA doesn't render the LDAP form. If ConfigErrorPage
-    // rendered instead of the form, capture that so the log tells us why.
-    const configErrHeading = page.getByRole('heading', { name: /config/i });
-    const raced = await Promise.race([
-      page
-        .getByLabel(/email/i)
-        .waitFor({ state: 'visible', timeout: 10_000 })
-        .then(() => 'form' as const)
-        .catch(() => null),
-      configErrHeading
-        .waitFor({ state: 'visible', timeout: 10_000 })
-        .then(() => 'config-error' as const)
-        .catch(() => null),
-    ]);
-    if (raced === 'config-error') {
-      const configResp = await page.request
-        .get('/api/v1/system/config/auth')
-        .then((r) => r.text())
-        .catch(() => '<fetch failed>');
-
-      throw new Error(
-        `LDAP performLogin: SPA rendered ConfigErrorPage instead of the ` +
-          `sign-in form. GET /api/v1/system/config/auth body: ${configResp}`
-      );
-    }
     await page.getByLabel(/email/i).fill(LDAP_USER_EMAIL);
     await page.getByLabel(/password/i).fill(LDAP_USER_PASSWORD);
     await page.getByRole('button', { name: /^(sign in|log in)$/i }).click();

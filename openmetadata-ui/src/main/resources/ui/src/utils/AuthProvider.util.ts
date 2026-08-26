@@ -571,20 +571,38 @@ export const requiredAuthFields = [
  * Order within each list matches the diagnostic order the config-error page
  * renders, so put the most-visible/most-actionable field first.
  */
+//
+// IMPORTANT: only reference fields the *public* `/api/v1/system/config/auth`
+// endpoint actually returns. The server strips nested configuration blocks
+// (`ldapConfiguration.dnAdminPassword`, `samlConfiguration.security.*`,
+// server-side OIDC secrets) so any `ldapConfiguration.host` /
+// `samlConfiguration.idp.entityId` / `oidcConfiguration.discoveryUri`
+// requirement here evaluates to undefined on real deployments and forces the
+// SPA into `ConfigErrorPage` even when the backend is configured correctly.
+// Verified against CI: with `provider: ldap` the public endpoint returns
+// zero `ldapConfiguration.*` fields; the SPA form never rendered because
+// the validator kept flagging them missing.
+//
+// Keep this validator focused on the top-level fields the SPA itself uses
+// to bootstrap (authority for OIDC/OAuth, clientId to feed the SDK, etc.).
+// Deep config correctness is the server's job — an invalid nested config
+// surfaces as a real IdP-side error message, not a client short-circuit.
 const REQUIRED_FIELDS_BY_PROVIDER: Record<string, string[]> = {
   // Basic + LDAP don't render an IdP sign-in button — `providerName` is a
   // display-only field for those, and `getAuthConfig` strips it out of the
-  // returned shape. Keep the validator focused on runtime-blocking fields
-  // only, so a Basic install with a missing providerName isn't blocked
-  // from starting up.
+  // returned shape. The runtime-blocking check is that a provider is set.
   [AuthProvider.Basic]: ['provider'],
+  [AuthProvider.LDAP]: ['provider'],
+  // IdP flows all need the four top-level fields to boot their client SDK:
+  // authority (issuer/discovery root), clientId (OAuth client), callbackUrl
+  // (redirect target), providerName (visible sign-in button text). Nested
+  // configuration blocks are server-side and not exposed to the SPA.
   [AuthProvider.CustomOidc]: [
     'provider',
     'providerName',
     'clientId',
     'callbackUrl',
     'authority',
-    'oidcConfiguration.discoveryUri',
   ],
   [AuthProvider.Google]: [
     'provider',
@@ -592,7 +610,6 @@ const REQUIRED_FIELDS_BY_PROVIDER: Record<string, string[]> = {
     'clientId',
     'callbackUrl',
     'authority',
-    'oidcConfiguration.discoveryUri',
   ],
   [AuthProvider.Auth0]: [
     'provider',
@@ -600,7 +617,6 @@ const REQUIRED_FIELDS_BY_PROVIDER: Record<string, string[]> = {
     'clientId',
     'callbackUrl',
     'authority',
-    'oidcConfiguration.discoveryUri',
   ],
   [AuthProvider.Azure]: [
     'provider',
@@ -608,7 +624,6 @@ const REQUIRED_FIELDS_BY_PROVIDER: Record<string, string[]> = {
     'clientId',
     'callbackUrl',
     'authority',
-    'oidcConfiguration.discoveryUri',
   ],
   [AuthProvider.Okta]: [
     'provider',
@@ -616,23 +631,11 @@ const REQUIRED_FIELDS_BY_PROVIDER: Record<string, string[]> = {
     'clientId',
     'callbackUrl',
     'authority',
-    'oidcConfiguration.discoveryUri',
   ],
-  [AuthProvider.Saml]: [
-    'provider',
-    'providerName',
-    'samlConfiguration.idp.entityId',
-    'samlConfiguration.sp.entityId',
-  ],
-  // Same reasoning as Basic — `providerName` is display-only and dropped
-  // by `getAuthConfig`, so keep the validator on the runtime-blocking
-  // fields that actually stop the LDAP bind from working.
-  [AuthProvider.LDAP]: [
-    'provider',
-    'ldapConfiguration.host',
-    'ldapConfiguration.port',
-    'ldapConfiguration.userBaseDN',
-  ],
+  // SAML's `getAuthConfig` branch above intentionally omits `providerName`
+  // from the returned client shape (SAML renders a fixed "Sign in with SAML
+  // SSO" label), so requiring it here would always trip ConfigErrorPage.
+  [AuthProvider.Saml]: ['provider'],
 };
 
 /**

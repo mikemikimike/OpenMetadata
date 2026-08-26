@@ -141,14 +141,15 @@ export const oktaProviderFixture: SsoProviderFixture = {
   ): Promise<SsoBrokenConfigureResult> {
     const snapshot = await fetchSecurityConfig(apiContext);
     const payload = buildConfigPayload();
-    // Drop oidcConfiguration.clientId — the validator must name this field
-    // before Okta's authorize redirect throws a cryptic invalid_client error.
+    // Empty top-level `clientId` — nested `oidcConfiguration.*` is stripped
+    // from the public config endpoint, so the client validator only sees
+    // top-level fields. Server accepts non-null empty string; client's
+    // `isFieldMissing` flags it.
     const authConfig = payload.authenticationConfiguration as Record<
       string,
       unknown
     >;
-    const oidcConfig = authConfig.oidcConfiguration as Record<string, unknown>;
-    delete oidcConfig.clientId;
+    authConfig.clientId = '';
 
     await applyProviderConfig(apiContext, snapshot, payload);
 
@@ -156,7 +157,7 @@ export const oktaProviderFixture: SsoProviderFixture = {
       restore: async () => {
         await restoreSecurityConfig(apiContext, snapshot);
       },
-      expectedWarningPattern: /oidcConfiguration\.clientId|clientId/,
+      expectedWarningPattern: /clientId/,
     };
   },
 
