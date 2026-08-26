@@ -94,16 +94,13 @@ if (isSilentCallbackRoute) {
   // `initCoreI18n` is kept out of LocalUtil so the core-components package
   // doesn't leak into files that Playwright's `--list` walks.
   void (async () => {
-    const [
-      { initCoreI18n },
-      { default: i18next },
-      { default: AppRoot },
-    ] = await Promise.all([
-      import('@openmetadata/ui-core-components'),
-      import('./utils/i18next/LocalUtil'),
-      import('./AppRoot'),
-      import('./styles/index'),
-    ]);
+    const [{ initCoreI18n }, { default: i18next }, { default: AppRoot }] =
+      await Promise.all([
+        import('@openmetadata/ui-core-components'),
+        import('./utils/i18next/LocalUtil'),
+        import('./AppRoot'),
+        import('./styles/index'),
+      ]);
 
     // Register the library's `core` i18next namespace. `addResourceBundle` is
     // safe to call before `i18next.init` resolves — the bundles queue and
