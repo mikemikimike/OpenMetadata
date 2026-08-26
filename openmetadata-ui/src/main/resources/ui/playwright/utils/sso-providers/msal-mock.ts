@@ -353,15 +353,15 @@ export const msalMockProviderFixture: SsoProviderFixture = {
             });
             const value = await new Promise<unknown>((resolve, reject) => {
               const tx = db.transaction(['keyValueStore'], 'readonly');
-              const req = tx
-                .objectStore('keyValueStore')
-                .get('app_state');
+              const req = tx.objectStore('keyValueStore').get('app_state');
               req.onsuccess = () => resolve(req.result);
               req.onerror = () => reject(req.error);
             });
             db.close();
 
-            return typeof value === 'string' ? value.slice(0, 60) : String(value);
+            return typeof value === 'string'
+              ? value.slice(0, 60)
+              : String(value);
           } catch (err) {
             return `<idb read failed: ${(err as Error).message}>`;
           }
