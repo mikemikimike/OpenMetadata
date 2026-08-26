@@ -29,7 +29,7 @@ jest.mock('../../../utils/Auth/AuthCoordinator', () => ({
   },
 }));
 
-jest.mock('../AuthProviders/BasicAuthProvider', () => ({
+jest.mock('../AuthProviders/BasicAuthContext', () => ({
   useBasicAuth: () => ({ handleLogout }),
 }));
 
