@@ -112,6 +112,7 @@ export const ldapProviderFixture: SsoProviderFixture = {
   // reload security system"). No client-invalid-server-valid config
   // exists — verified locally against openldap + docker OM.
   supportsBrokenConfigCheck: false,
+  usesBackendRefresh: true,
 
   // The compose service is expected up when this profile runs; when it is
   // not, the container is unreachable and the configureBackend PUT will

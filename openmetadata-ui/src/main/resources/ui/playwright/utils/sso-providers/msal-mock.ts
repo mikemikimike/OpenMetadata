@@ -275,6 +275,7 @@ export const msalMockProviderFixture: SsoProviderFixture = {
   supportsSelfSignup: false,
   supportsSilentCallback: false,
   supportsBrokenConfigCheck: true,
+  usesBackendRefresh: false,
 
   isAvailable: () => true,
 
@@ -370,6 +371,10 @@ export const msalMockProviderFixture: SsoProviderFixture = {
         .get('/api/v1/users/loggedInUser?fields=profile')
         .then(async (r) => `${r.status()} ${(await r.text()).slice(0, 200)}`)
         .catch((err) => `<request failed: ${(err as Error).message}>`);
+      const publicAuthCfg = await page.request
+        .get('/api/v1/system/config/auth')
+        .then(async (r) => `${r.status()} ${(await r.text()).slice(0, 500)}`)
+        .catch((err) => `<request failed: ${(err as Error).message}>`);
       const bodyText = await page
         .locator('body')
         .innerText({ timeout: 2_000 })
@@ -381,6 +386,7 @@ export const msalMockProviderFixture: SsoProviderFixture = {
           `  window.__omTestMsal present    = ${overrideProbe}\n` +
           `  IndexedDB app_state (first 60) = ${seedProbe}\n` +
           `  GET /users/loggedInUser        = ${loggedInUserResp}\n` +
+          `  GET /system/config/auth        = ${publicAuthCfg}\n` +
           `  adminPat minted                = ${adminPat ? 'yes' : 'no'}\n` +
           `  body.innerText (first 300)     = ${bodyText.slice(0, 300)}\n` +
           `  original: ${(originalError as Error).message}`

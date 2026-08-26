@@ -197,6 +197,7 @@ export const keycloakSamlProviderFixture: SsoProviderFixture = {
   // no top-level field we can meaningfully break to trigger ConfigErrorPage
   // without also breaking the sign-in flow itself — skip scenarios 8/9.
   supportsBrokenConfigCheck: false,
+  usesBackendRefresh: true,
 
   signInButtonPattern: /(sign in|log in) with SAML SSO/i,
 

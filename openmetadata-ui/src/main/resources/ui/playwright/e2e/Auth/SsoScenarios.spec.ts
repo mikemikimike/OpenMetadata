@@ -222,6 +222,20 @@ for (const fixture of FIXTURES) {
       test('silent refresh recovers an expired token', async ({ page }) => {
         test.slow();
 
+        // Only Basic/LDAP/SAML/confidential-OIDC drive their Renewer through
+        // OM's `/api/v1/auth/refresh` — MSAL/Auth0/OIDC-public/Okta run
+        // silent refresh entirely inside the browser SDK, so this
+        // `waitForResponse` on `/auth/refresh` would time out. See
+        // `usesBackendRefresh` in fixture.ts.
+        if (!fixture.usesBackendRefresh) {
+          test.skip(
+            true,
+            `${fixture.slug} refreshes via SDK, no observable /auth/refresh call`
+          );
+
+          return;
+        }
+
         await fixture.performLogin(page);
         await fixture.forceTokenExpiry(page);
 
@@ -287,6 +301,19 @@ for (const fixture of FIXTURES) {
 
         if (!fixture.supportsCrossTab) {
           test.skip(true, `${fixture.slug} skipped: no cross-tab lock`);
+        }
+
+        // Same reasoning as scenario 3 — SDK-driven refresh produces no
+        // observable /auth/refresh call for MSAL/Auth0/OIDC-public/Okta,
+        // so the "single 200 hits the network" assertion trivially passes
+        // (0 calls) but tells us nothing about the CrossTabLock.
+        if (!fixture.usesBackendRefresh) {
+          test.skip(
+            true,
+            `${fixture.slug} refreshes via SDK, no observable /auth/refresh call to coalesce`
+          );
+
+          return;
         }
 
         const context = await browser.newContext();

@@ -674,8 +674,19 @@ export const AuthProvider = ({
         const provider = authConfig.provider;
         // show an error toast if provider is null or not supported
         if (provider && Object.values(AuthProviderEnum).includes(provider)) {
+          // Validate against the RAW server response, not the transformed
+          // configJson. `getAuthConfig` reshapes into per-SDK payloads —
+          // Azure/Basic nest fields under `auth.*`, Okta renames
+          // `authority` → `issuer`, several providers omit `providerName`
+          // — so validating the transformed shape falsely reported every
+          // Azure/Auth0 config as broken (fields "missing" that were only
+          // nested-away). REQUIRED_FIELDS_BY_PROVIDER lists the fields the
+          // /system/config/auth public endpoint actually exposes, which is
+          // what `authConfig` is.
+          const validation = validateAuthFieldsDetailed(
+            authConfig as AuthenticationConfigurationWithScope
+          );
           const configJson = getAuthConfig(authConfig);
-          const validation = validateAuthFieldsDetailed(configJson);
           if (!validation.valid) {
             // Short-circuit: never proceed to create an authenticator, never
             // redirect to the IdP with a broken config. The user sees

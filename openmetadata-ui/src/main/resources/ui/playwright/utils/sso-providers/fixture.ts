@@ -79,6 +79,16 @@ export interface SsoProviderFixture {
    * When false, scenarios 8 and 9 are `.skip()`'d for this provider.
    */
   supportsBrokenConfigCheck: boolean;
+  /**
+   * true when the AuthCoordinator's Renewer for this provider hits OM's
+   * `/api/v1/auth/refresh` endpoint (Basic/LDAP via BasicAuthAuthenticator,
+   * SAML + confidential OIDC via GenericAuthenticator). false when the
+   * Renewer is browser-SDK-driven (MSAL's `acquireTokenSilent`, Auth0's
+   * `getAccessTokenSilently`, oidc-client's `signinSilent`, Okta's
+   * `renewTokens`) and produces no observable OM API call — those legs
+   * can't assert scenarios 3 and 5 by waiting on `/auth/refresh`.
+   */
+  usesBackendRefresh: boolean;
 
   // ── Env gating ──────────────────────────────────────────────────────────
 
