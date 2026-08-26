@@ -38,6 +38,17 @@ export const KEYCLOAK_SAML = {
     process.env[SSO_ENV.KEYCLOAK_SAML_PRINCIPAL_DOMAIN] ?? 'openmetadata.local',
 } as const;
 
+// The Keycloak realms in `docker/local-sso/keycloak-saml/realms/*.json` seed
+// exactly one test user with these creds. They aren't secrets — they're
+// checked into the repo. Fixtures fall back to these when
+// `SSO_USERNAME`/`SSO_PASSWORD` env vars are empty in CI, so the leg still
+// works even without repo-admin var configuration. Real IdPs (Okta) still
+// require actual env vars — the fallback only applies to Keycloak.
+export const KEYCLOAK_SEEDED_CREDS = {
+  username: process.env[SSO_ENV.USERNAME] || 'azure.saml@openmetadata.local',
+  password: process.env[SSO_ENV.PASSWORD] || 'OpenMetadata@123',
+} as const;
+
 interface KeycloakSamlProfile {
   realm: string;
   providerName: string;
@@ -234,8 +245,8 @@ export const keycloakSamlProviderFixture: SsoProviderFixture = {
     await page.goto('/signin');
     await page.getByRole('button', { name: this.signInButtonPattern }).click();
     await performProviderLogin(page, {
-      username: process.env[SSO_ENV.USERNAME] ?? '',
-      password: process.env[SSO_ENV.PASSWORD] ?? '',
+      username: KEYCLOAK_SEEDED_CREDS.username,
+      password: KEYCLOAK_SEEDED_CREDS.password,
     });
     await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
       timeout: 60_000,

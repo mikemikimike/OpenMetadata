@@ -25,6 +25,7 @@ import {
   assertSupportedBaseUrl,
   escapeRegExp,
   KEYCLOAK_SAML,
+  KEYCLOAK_SEEDED_CREDS,
   performProviderLogin,
 } from './keycloak-saml';
 
@@ -164,8 +165,8 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
     await page.goto('/signin');
     await page.getByRole('button', { name: this.signInButtonPattern }).click();
     await performProviderLogin(page, {
-      username: process.env[SSO_ENV.USERNAME] ?? '',
-      password: process.env[SSO_ENV.PASSWORD] ?? '',
+      username: KEYCLOAK_SEEDED_CREDS.username,
+      password: KEYCLOAK_SEEDED_CREDS.password,
     });
     await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
       timeout: 60_000,

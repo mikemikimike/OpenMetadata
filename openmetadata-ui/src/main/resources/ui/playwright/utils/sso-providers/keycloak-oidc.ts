@@ -25,6 +25,7 @@ import {
   assertSupportedBaseUrl,
   escapeRegExp,
   KEYCLOAK_SAML,
+  KEYCLOAK_SEEDED_CREDS,
   performProviderLogin,
 } from './keycloak-saml';
 
@@ -156,8 +157,8 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
     await page.goto('/signin');
     await page.getByRole('button', { name: this.signInButtonPattern }).click();
     await performProviderLogin(page, {
-      username: process.env[SSO_ENV.USERNAME] ?? '',
-      password: process.env[SSO_ENV.PASSWORD] ?? '',
+      username: KEYCLOAK_SEEDED_CREDS.username,
+      password: KEYCLOAK_SEEDED_CREDS.password,
     });
     // Diagnostic (round-10): scenarios 1-6 all time out on the sidebar
     // after the Keycloak login submission — the real IdP round-trip
