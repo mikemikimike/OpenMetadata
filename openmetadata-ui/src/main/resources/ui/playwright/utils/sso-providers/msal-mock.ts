@@ -203,10 +203,50 @@ const installMsalMock = async (
         logger: undefined,
       };
 
-      // Cold-load path: AuthCoordinator reads this key on boot and, when
-      // present + unexpired, flips isAuthenticated true without ever
-      // touching the (mocked) SDK.
-      localStorage.setItem('oidcIdToken', idToken);
+      // Cold-load path: AuthCoordinator reads the token from
+      // `app_state.primary` in IndexedDB via the app-worker service worker
+      // (see SwTokenStorage / SwTokenStorageUtils). The `oidcIdToken`
+      // localStorage key hasn't been the token store since the SW rewrite
+      // — writing it here is a no-op. Seed IndexedDB directly so
+      // `getOidcToken()` resolves to a valid Bearer on first render, before
+      // the SW is even registered (the SW's `get` handler falls through to
+      // IndexedDB when its in-memory swStore misses).
+      // Fire-and-forget: init-scripts don't await; the DB write races the
+      // SPA boot, and on Chromium indexedDB opens are fast enough that
+      // `getOidcToken` (also async) resolves after our put completes. If
+      // it doesn't, the SPA re-renders once the token becomes available.
+      const seedPromise = new Promise<void>((resolve) => {
+        const req = indexedDB.open('AppDataStore', 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('keyValueStore')) {
+            db.createObjectStore('keyValueStore');
+          }
+        };
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction(['keyValueStore'], 'readwrite');
+          tx.objectStore('keyValueStore').put(
+            JSON.stringify({ primary: idToken }),
+            'app_state'
+          );
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => {
+            db.close();
+            resolve();
+          };
+        };
+        req.onerror = () => resolve();
+      });
+      // Expose the seed promise so the AuthProvider can await it before
+      // reading the token (kept as a defensive hook — not currently
+      // consumed by production code).
+      (
+        window as unknown as { __omTestSeedTokenPromise: Promise<void> }
+      ).__omTestSeedTokenPromise = seedPromise;
     },
     {
       idToken,

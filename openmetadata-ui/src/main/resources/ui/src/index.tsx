@@ -11,22 +11,12 @@
  *  limitations under the License.
  */
 
-import { initCoreI18n } from '@openmetadata/ui-core-components';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import AppRoot from './AppRoot';
 import SilentCallback from './components/Auth/SilentCallback';
 import { APP_ROUTER_ROUTES } from './constants/router.constants';
-import './styles/index';
 import { getBasePath } from './utils/HistoryUtils';
-import i18next from './utils/i18next/LocalUtil';
 import { isSsoTestLoginPopup } from './utils/SsoTestLoginPopup';
-
-// Register the library's `core` i18next namespace. `addResourceBundle` is safe
-// to call before `i18next.init` resolves — the bundles queue and become live
-// once init completes. Kept here (not inside LocalUtil.tsx) so the library
-// import doesn't leak into files that Playwright's `--list` walks.
-initCoreI18n(i18next);
 
 const recordPlaywrightAppBoot = () => {
   if (!import.meta.env.PW_E2E_BUILD) {
@@ -60,16 +50,16 @@ if (!container) {
   throw new Error('Failed to find the root element');
 }
 
-recordPlaywrightAppBoot();
-
 // Silent-renew iframe path: when the current document is the hidden iframe
 // oidc-client uses to refresh tokens, render ONLY the tiny <SilentCallback />
 // component — never mount `<AppRoot />`, and never enter the AuthProvider /
 // AppRouter tree. Doing so previously caused every silent refresh to load
 // the full app inside the iframe just to postMessage a token back to the
-// parent tab. (Parked concern from the AuthCoordinator refactor summary;
-// asserted by scenario 7 of the SSO test refactor.) `startsWith` covers the
-// case where the deploy-time base path is prepended to the pathname.
+// parent tab. Scenario 7 of SsoScenarios.spec asserts no >500 KB JS chunk
+// loads on this route, so AppRoot and its transitive deps (initCoreI18n,
+// app styles) are dynamically imported below and never pulled into the
+// entry chunk. `startsWith` covers the case where the deploy-time base
+// path is prepended to the pathname.
 const isSilentCallbackRoute = (() => {
   const path = globalThis.location.pathname;
   const basePath = getBasePath();
@@ -97,32 +87,60 @@ if (isSilentCallbackRoute) {
     // If the chunk fails to load, close the popup so the opener doesn't hang.
     .catch(() => globalThis.close());
 } else {
-  const root = createRoot(container);
+  recordPlaywrightAppBoot();
 
-  root.render(
-    <React.StrictMode>
-      <AppRoot />
-    </React.StrictMode>
-  );
+  // Full-app path — every heavy dependency is imported dynamically so the
+  // silent-callback branch above never pulls them into the entry chunk.
+  // `initCoreI18n` is kept out of LocalUtil so the core-components package
+  // doesn't leak into files that Playwright's `--list` walks.
+  void (async () => {
+    const [
+      { initCoreI18n },
+      { default: i18next },
+      { default: AppRoot },
+    ] = await Promise.all([
+      import('@openmetadata/ui-core-components'),
+      import('./utils/i18next/LocalUtil'),
+      import('./AppRoot'),
+      import('./styles/index'),
+    ]);
+
+    // Register the library's `core` i18next namespace. `addResourceBundle` is
+    // safe to call before `i18next.init` resolves — the bundles queue and
+    // become live once init completes.
+    initCoreI18n(i18next);
+
+    const root = createRoot(container);
+
+    root.render(
+      <React.StrictMode>
+        <AppRoot />
+      </React.StrictMode>
+    );
+  })();
 }
 
 // In dev (Vite) the asset-caching service worker only serves stale chunks and
 // fights HMR, so skip registration and proactively unregister any SW left over
-// from a previous production session.
-if (import.meta.env.DEV) {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker
-      .getRegistrations()
-      .then((registrations) =>
-        registrations.forEach((registration) => registration.unregister())
-      );
+// from a previous production session. Skip SW work entirely on the
+// silent-callback path — the iframe has no need for it and unregistering here
+// would tear down the parent tab's cached assets.
+if (!isSilentCallbackRoute) {
+  if (import.meta.env.DEV) {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) =>
+          registrations.forEach((registration) => registration.unregister())
+        );
+    }
+  } else if ('serviceWorker' in navigator && 'indexedDB' in globalThis) {
+    window.addEventListener('load', () => {
+      const basePath = getBasePath();
+      const serviceWorkerPath = basePath
+        ? `${basePath}/app-worker.js`
+        : '/app-worker.js';
+      navigator.serviceWorker.register(serviceWorkerPath);
+    });
   }
-} else if ('serviceWorker' in navigator && 'indexedDB' in globalThis) {
-  window.addEventListener('load', () => {
-    const basePath = getBasePath();
-    const serviceWorkerPath = basePath
-      ? `${basePath}/app-worker.js`
-      : '/app-worker.js';
-    navigator.serviceWorker.register(serviceWorkerPath);
-  });
 }

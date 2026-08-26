@@ -187,9 +187,43 @@ const installAuth0Mock = async (
         }),
       };
 
-      // Cold-load path: AuthCoordinator reads this on boot and flips
-      // isAuthenticated=true without ever touching the (mocked) SDK.
-      localStorage.setItem('oidcIdToken', idToken);
+      // Cold-load path: AuthCoordinator reads the token from
+      // `app_state.primary` in IndexedDB via the app-worker service worker
+      // (see SwTokenStorage / SwTokenStorageUtils). The `oidcIdToken`
+      // localStorage key hasn't been the token store since the SW rewrite
+      // — writing it here is a no-op. Seed IndexedDB directly so
+      // `getOidcToken()` resolves to a valid Bearer on first render, before
+      // the SW is even registered (the SW's `get` handler falls through to
+      // IndexedDB when its in-memory swStore misses).
+      const seedPromise = new Promise<void>((resolve) => {
+        const req = indexedDB.open('AppDataStore', 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('keyValueStore')) {
+            db.createObjectStore('keyValueStore');
+          }
+        };
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction(['keyValueStore'], 'readwrite');
+          tx.objectStore('keyValueStore').put(
+            JSON.stringify({ primary: idToken }),
+            'app_state'
+          );
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => {
+            db.close();
+            resolve();
+          };
+        };
+        req.onerror = () => resolve();
+      });
+      (
+        window as unknown as { __omTestSeedTokenPromise: Promise<void> }
+      ).__omTestSeedTokenPromise = seedPromise;
     },
     {
       idToken,
