@@ -299,9 +299,66 @@ export const auth0MockProviderFixture: SsoProviderFixture = {
 
     await page.goto('/');
 
-    await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
-      timeout: 30_000,
-    });
+    try {
+      await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
+        timeout: 30_000,
+      });
+    } catch (originalError) {
+      const url = page.url();
+      const overrideProbe = await page
+        .evaluate(
+          () =>
+            (
+              window as unknown as {
+                __omTestAuth0?: { isAuthenticated?: boolean };
+              }
+            ).__omTestAuth0?.isAuthenticated
+        )
+        .catch(() => undefined);
+      const seedProbe = await page
+        .evaluate(async () => {
+          try {
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              const req = indexedDB.open('AppDataStore', 1);
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => reject(req.error);
+            });
+            const value = await new Promise<unknown>((resolve, reject) => {
+              const tx = db.transaction(['keyValueStore'], 'readonly');
+              const req = tx
+                .objectStore('keyValueStore')
+                .get('app_state');
+              req.onsuccess = () => resolve(req.result);
+              req.onerror = () => reject(req.error);
+            });
+            db.close();
+
+            return typeof value === 'string' ? value.slice(0, 60) : String(value);
+          } catch (err) {
+            return `<idb read failed: ${(err as Error).message}>`;
+          }
+        })
+        .catch(() => '<probe failed>');
+      const loggedInUserResp = await page.request
+        .get('/api/v1/users/loggedInUser?fields=profile')
+        .then(async (r) => `${r.status()} ${(await r.text()).slice(0, 200)}`)
+        .catch((err) => `<request failed: ${(err as Error).message}>`);
+      const bodyText = await page
+        .locator('body')
+        .innerText({ timeout: 2_000 })
+        .catch(() => '<innerText failed>');
+
+      throw new Error(
+        `auth0-mock performLogin: sidebar never appeared.\n` +
+          `  page.url()                        = ${url}\n` +
+          `  __omTestAuth0.isAuthenticated     = ${String(overrideProbe)}\n` +
+          `  IndexedDB app_state (first 60)    = ${seedProbe}\n` +
+          `  GET /users/loggedInUser           = ${loggedInUserResp}\n` +
+          `  adminPat minted                   = ${adminPat ? 'yes' : 'no'}\n` +
+          `  body.innerText (first 300)        = ${bodyText.slice(0, 300)}\n` +
+          `  original: ${(originalError as Error).message}`
+      );
+    }
   },
 
   async performLogout(page: Page) {

@@ -168,13 +168,39 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
       username: KEYCLOAK_SEEDED_CREDS.username,
       password: KEYCLOAK_SEEDED_CREDS.password,
     });
-    // Confidential OIDC got the same diagnostic and unblocked us via the
-    // AppRouter isAuthenticating guard; public OIDC uses OidcAuthenticator's
-    // in-tree /callback route which SHOULD render even while the app tree
-    // is loading, so a stall here would point at a different mechanism
-    // (redirect_uri mismatch, oidc-client state-store mismatch, etc.).
-    // Capture the actual URL + loggedInUser response so the next CI log
-    // tells us which.
+
+    // Public OIDC's SPA-driven flow doesn't have OM's BE-mediated code
+    // exchange auto-creating the user (that only fires for `clientType:
+    // confidential` via AuthenticationCodeFlowHandler.getOrCreateOidcUser).
+    // With `enableSelfSignup: true` in our config, `handleSuccessfulLogin`
+    // catches the 404 on /users/loggedInUser and navigates to /signup with
+    // the token's profile pre-filled. The Keycloak-realm-seeded user
+    // (azure.saml@openmetadata.local) exists only in the realm, not in
+    // OM's DB, so first login of this leg lands on /signup. Complete the
+    // form so scenario 1 finishes and the user persists for scenarios
+    // 2-6. Confidential OIDC skips this because BE already created the
+    // user during code exchange.
+    const submissionPending = page
+      .waitForResponse(
+        (resp) => resp.url().includes('/api/v1/users') && resp.status() < 400
+      )
+      .catch(() => undefined);
+    const signupVisible = await page
+      .getByTestId('create-button')
+      .isVisible({ timeout: 5_000 })
+      .catch(() => false);
+    if (signupVisible) {
+      // displayName is required; the SPA pre-fills it from token claims but
+      // the KC realm's user has no given_name claim, so fill deterministically.
+      const fullNameInput = page.getByTestId('full-name-input');
+      const currentName = await fullNameInput.inputValue().catch(() => '');
+      if (!currentName) {
+        await fullNameInput.fill('Azure Saml');
+      }
+      await page.getByTestId('create-button').click();
+      await submissionPending;
+    }
+
     try {
       await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
         timeout: 60_000,
