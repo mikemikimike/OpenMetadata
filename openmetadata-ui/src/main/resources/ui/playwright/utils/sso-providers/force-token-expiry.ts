@@ -30,10 +30,7 @@ export const forceTokenExpiry = async (page: Page): Promise<void> => {
     const ask = <T = unknown>(msg: Record<string, unknown>): Promise<T> =>
       new Promise((resolve, reject) => {
         const mc = new MessageChannel();
-        const timer = setTimeout(
-          () => reject(new Error('SW timeout')),
-          5000
-        );
+        const timer = setTimeout(() => reject(new Error('SW timeout')), 5000);
         mc.port1.onmessage = (e) => {
           clearTimeout(timer);
           if (e.data?.error) {
@@ -42,10 +39,9 @@ export const forceTokenExpiry = async (page: Page): Promise<void> => {
             resolve(e.data.result as T);
           }
         };
-        controller.postMessage(
-          { ...msg, requestId: `mangle_${Date.now()}` },
-          [mc.port2]
-        );
+        controller.postMessage({ ...msg, requestId: `mangle_${Date.now()}` }, [
+          mc.port2,
+        ]);
       });
     const stateStr = await ask<string | null>({
       type: 'get',

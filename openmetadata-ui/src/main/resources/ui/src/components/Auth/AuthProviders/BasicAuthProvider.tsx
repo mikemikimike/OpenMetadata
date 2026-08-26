@@ -15,7 +15,6 @@ import { AxiosError } from 'axios';
 import { ReactNode, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { BasicAuthContext } from './BasicAuthContext';
 import {
   HTTP_STATUS_CODE,
   LOGIN_FAILED_ERROR,
@@ -36,6 +35,7 @@ import {
   showSuccessToast,
 } from '../../../utils/ToastUtils';
 import { resetWebAnalyticSession } from '../../../utils/WebAnalyticsUtils';
+import { BasicAuthContext } from './BasicAuthContext';
 
 import { toLower } from 'lodash';
 import { extractDetailsFromToken } from '../../../utils/AuthProvider.util';
