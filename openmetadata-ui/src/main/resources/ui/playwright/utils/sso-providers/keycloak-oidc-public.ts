@@ -168,9 +168,36 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
       username: KEYCLOAK_SEEDED_CREDS.username,
       password: KEYCLOAK_SEEDED_CREDS.password,
     });
-    await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
-      timeout: 60_000,
-    });
+    // Confidential OIDC got the same diagnostic and unblocked us via the
+    // AppRouter isAuthenticating guard; public OIDC uses OidcAuthenticator's
+    // in-tree /callback route which SHOULD render even while the app tree
+    // is loading, so a stall here would point at a different mechanism
+    // (redirect_uri mismatch, oidc-client state-store mismatch, etc.).
+    // Capture the actual URL + loggedInUser response so the next CI log
+    // tells us which.
+    try {
+      await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
+        timeout: 60_000,
+      });
+    } catch (originalError) {
+      const url = page.url();
+      const loggedInUserResp = await page.request
+        .get('/api/v1/users/loggedInUser?fields=profile')
+        .then(async (r) => `${r.status()} ${(await r.text()).slice(0, 200)}`)
+        .catch((err) => `<request failed: ${(err as Error).message}>`);
+      const bodyText = await page
+        .locator('body')
+        .innerText({ timeout: 2_000 })
+        .catch(() => '<innerText failed>');
+
+      throw new Error(
+        `keycloak-oidc-public performLogin: sidebar never appeared.\n` +
+          `  page.url()               = ${url}\n` +
+          `  GET /users/loggedInUser  = ${loggedInUserResp}\n` +
+          `  body.innerText (first 300) = ${bodyText.slice(0, 300)}\n` +
+          `  original: ${(originalError as Error).message}`
+      );
+    }
   },
 
   async performLogout(page: Page) {

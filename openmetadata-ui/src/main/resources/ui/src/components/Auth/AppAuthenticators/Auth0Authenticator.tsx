@@ -37,17 +37,17 @@ interface Props {
 // suite can exercise this component's login / renew branches without a live
 // Auth0 tenant.
 //
-// Gated on `process.env.NODE_ENV !== 'production'` — Vite inlines this at
-// build time, Jest sets it to `'test'`, so the whole branch tree-shakes out
-// of prod bundles while still being reachable from the test runner.
+// Activation is a runtime-only opt-in — see MsalAuthenticator for the full
+// rationale. Vite inlines NODE_ENV as 'production' for `vite build`
+// (including the CI SSO leg), which previously tree-shook the shim entirely
+// and made every auth0-mock scenario time out. Keep the branch reachable in
+// prod; the `window.__omTestAuth0` runtime check is what actually enforces
+// test-only activation (only Playwright's addInitScript sets it, pre-app).
 // `useAuth0()` is still always called to satisfy the Rules of Hooks; only
 // its return value is swapped.
 type Auth0ContextShape = ReturnType<typeof useAuth0>;
 
 const readTestAuth0Override = (): Auth0ContextShape | undefined => {
-  if (process.env.NODE_ENV === 'production') {
-    return undefined;
-  }
   if (typeof window === 'undefined') {
     return undefined;
   }

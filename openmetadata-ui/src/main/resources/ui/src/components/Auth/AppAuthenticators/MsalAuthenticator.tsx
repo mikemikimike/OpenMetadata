@@ -48,17 +48,22 @@ interface Props {
 // react-msal context so the Playwright suite can exercise this component's
 // login / renew / redirect branches without a live Azure AD tenant.
 //
-// Gated on `process.env.NODE_ENV !== 'production'` — Vite inlines this at
-// build time (same behavior as `import.meta.env.MODE`), Jest sets it to
-// `'test'`, so the whole branch tree-shakes out of prod bundles while still
-// being reachable from the test runner. `useMsal()` is still always called
-// to satisfy the Rules of Hooks; only its return value is swapped.
+// Activation is guarded by a runtime opt-in only: the shim reads
+// `window.__omTestMsal`, and that global is set exclusively by Playwright's
+// `page.addInitScript`, which fires BEFORE any app JS in an isolated test
+// browser context. A real prod user has no way to set it before the bundle
+// runs — the only vectors (bookmarklet / dev-tools / pre-app XSS) already
+// imply attacker JS execution, which is a bigger problem than swapping
+// MSAL's return value. Previously this was gated on
+// `process.env.NODE_ENV !== 'production'`, but Vite inlines NODE_ENV as
+// 'production' for any `vite build` — including the CI SSO leg — so the
+// entire branch tree-shook out of the SSO Playwright bundle and every
+// mock-fixture scenario timed out on the sidebar. Keep the shim reachable
+// in prod bundles; the runtime opt-in is what actually enforces
+// test-only activation.
 type MsalContextShape = ReturnType<typeof useMsal>;
 
 const readTestMsalOverride = (): MsalContextShape | undefined => {
-  if (process.env.NODE_ENV === 'production') {
-    return undefined;
-  }
   if (typeof window === 'undefined') {
     return undefined;
   }
