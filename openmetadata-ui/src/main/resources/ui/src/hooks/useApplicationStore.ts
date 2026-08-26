@@ -14,7 +14,6 @@ import { create } from 'zustand';
 import { AuthenticationConfigurationWithScope } from '../components/Auth/AuthProviders/AuthProvider.interface';
 import { EntityUnion } from '../components/Explore/ExplorePage.interface';
 import { DEFAULT_DOMAIN_VALUE } from '../constants/constants';
-import { APP_ROUTER_ROUTES } from '../constants/router.constants';
 import { AuthenticationConfiguration } from '../generated/configuration/authenticationConfiguration';
 import { AuthorizerConfiguration } from '../generated/configuration/authorizerConfiguration';
 import { UIThemePreference } from '../generated/configuration/uiThemePreference';
@@ -78,20 +77,26 @@ export const useApplicationStore = create<ApplicationStore>()((set, get) => ({
     try {
       // OAuth-callback races: on a fresh redirect back into the app the
       // authenticator's own handler (OidcAuthenticator's <Callback>,
-      // MsalAuthenticator's handleRedirectPromise, GenericAuthenticator's
-      // SAML callback) hasn't stored the token yet when AppRoot fires
-      // initializeAuthState. Flipping isAuthenticating=false here would
-      // reveal /signin for a frame until handleSuccessfulLogin flips
-      // isAuthenticated back true — the "sign-in blink". Bail early on
-      // callback routes and let the authenticator drive the state.
-      const path = window.location.pathname;
-      if (
-        path === APP_ROUTER_ROUTES.CALLBACK ||
-        path === APP_ROUTER_ROUTES.AUTH_CALLBACK ||
-        path === APP_ROUTER_ROUTES.SILENT_CALLBACK
-      ) {
-        return;
-      }
+      // MsalAuthenticator's handleRedirectPromise, SamlCallback) hasn't
+      // stored the token yet. Historically we bailed here on callback
+      // routes to avoid a "sign-in blink" — but that stranded
+      // `isAuthenticating: true`, and nothing else clears it (see the
+      // setter map below and `handleSuccessfulLogin`, which only touches
+      // `isAuthenticated`/`isApplicationLoading`). The result: AppRouter's
+      // top-level `if (isAuthenticating) return <Loader />` gate blocked
+      // SamlCallback from ever mounting on /auth/callback, so confidential
+      // OIDC + SAML logins hung. The public-OIDC (/callback) path lost the
+      // final loader-clear the same way after OidcCallbackWrapper handled
+      // the fragment.
+      //
+      // Callback routes are safe to fall through: OidcAuthenticator owns
+      // its own <Route path="/callback"> that renders regardless of
+      // childElement, AppRouter's else branch owns <Route
+      // path="/auth/callback"> → SamlCallback, and /silent-callback is
+      // now handled by the pre-AuthProvider short-circuit in index.tsx
+      // (initializeAuthState never fires there). A short unauthenticated
+      // frame on /callback would still be masked by OidcCallbackWrapper
+      // rendering above the catch-all `path="*"`, so no blink returns.
 
       let token = '';
 
