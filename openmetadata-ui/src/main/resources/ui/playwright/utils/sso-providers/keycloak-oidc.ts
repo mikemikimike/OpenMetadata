@@ -159,9 +159,35 @@ export const keycloakOidcConfidentialProviderFixture: SsoProviderFixture = {
       username: process.env[SSO_ENV.USERNAME] ?? '',
       password: process.env[SSO_ENV.PASSWORD] ?? '',
     });
-    await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
-      timeout: 60_000,
-    });
+    // Diagnostic (round-10): scenarios 1-6 all time out on the sidebar
+    // after the Keycloak login submission — the real IdP round-trip
+    // completes but the SPA never lands on the authenticated shell.
+    // Capture the actual URL + loggedInUser response so the next CI
+    // log tells us why (session cookie missing / JWT rejected / stuck
+    // on /callback / etc.).
+    try {
+      await expect(page.getByTestId('app-bar-item-my-data')).toBeVisible({
+        timeout: 60_000,
+      });
+    } catch (originalError) {
+      const url = page.url();
+      const loggedInUserResp = await page.request
+        .get('/api/v1/users/loggedInUser?fields=profile')
+        .then(async (r) => `${r.status()} ${(await r.text()).slice(0, 200)}`)
+        .catch((err) => `<request failed: ${(err as Error).message}>`);
+      const bodyText = await page
+        .locator('body')
+        .innerText({ timeout: 2_000 })
+        .catch(() => '<innerText failed>');
+
+      throw new Error(
+        `keycloak-oidc-confidential performLogin: sidebar never appeared.\n` +
+          `  page.url()               = ${url}\n` +
+          `  GET /users/loggedInUser  = ${loggedInUserResp}\n` +
+          `  body.innerText (first 300) = ${bodyText.slice(0, 300)}\n` +
+          `  original: ${(originalError as Error).message}`
+      );
+    }
   },
 
   async performLogout(page: Page) {

@@ -34,11 +34,19 @@ import { APIRequestContext, expect, Page } from '@playwright/test';
 import {
   applyProviderConfig,
   fetchSecurityConfig,
+  mintAdminRestoreToken,
   restoreSecurityConfig,
 } from '../ssoAuth';
 import { SsoBrokenConfigureResult, SsoProviderFixture } from './fixture';
 import { forceTokenExpiry } from './force-token-expiry';
 import { mintMockJwt } from './mock-token';
+
+// See msal-mock.ts for the full rationale — `configureBackend` mints an
+// admin PAT (signed by OM's own JWKS, sessionless so it survives the
+// provider swap) and `performLogin` passes it into `installAuth0Mock`
+// so `/users/loggedInUser` accepts the SPA-side Bearer instead of
+// rejecting the throwaway mock JWT.
+let adminPat: string | null = null;
 
 // Must be the seeded admin's actual email (hyphenated domain) so the
 // SPA's post-mock-login GET /users/loggedInUser resolves — mismatched
@@ -108,13 +116,18 @@ const buildBrokenConfig = () => {
  * mounts. `Auth0Authenticator` reads the shim on first render and uses it
  * in place of `useAuth0()`.
  */
-const installAuth0Mock = async (page: Page): Promise<void> => {
-  const idToken = mintMockJwt({
-    email: MOCK_EMAIL,
-    name: MOCK_NAME,
-    sub: MOCK_SUB,
-    expInSeconds: TOKEN_LIFETIME_SECONDS,
-  });
+const installAuth0Mock = async (
+  page: Page,
+  overrideIdToken?: string
+): Promise<void> => {
+  const idToken =
+    overrideIdToken ??
+    mintMockJwt({
+      email: MOCK_EMAIL,
+      name: MOCK_NAME,
+      sub: MOCK_SUB,
+      expInSeconds: TOKEN_LIFETIME_SECONDS,
+    });
 
   await page.addInitScript(
     ({ idToken, email, name, sub, lifetimeSeconds }) => {
@@ -211,6 +224,14 @@ export const auth0MockProviderFixture: SsoProviderFixture = {
   signInButtonPattern: /sign in with (auth0|sso)/i,
 
   async configureBackend(apiContext: APIRequestContext) {
+    // Mint a PAT BEFORE the swap — signed by OM's JWKS so
+    // `/users/loggedInUser` accepts the SPA-side Bearer instead of
+    // rejecting the mock JWT. See module-level comment.
+    try {
+      adminPat = await mintAdminRestoreToken(apiContext);
+    } catch {
+      adminPat = null;
+    }
     const snapshot = await fetchSecurityConfig(apiContext);
     await applyProviderConfig(apiContext, snapshot, buildValidConfig());
 
@@ -238,7 +259,9 @@ export const auth0MockProviderFixture: SsoProviderFixture = {
   async performLogin(page: Page) {
     // Install the mock *before* the first navigation so cold-load sees
     // both `__omTestAuth0` and the seeded token on its first read.
-    await installAuth0Mock(page);
+    // Pass the admin PAT from `configureBackend` so the SPA-side Bearer
+    // is server-verifiable — see the module comment on `adminPat`.
+    await installAuth0Mock(page, adminPat ?? undefined);
 
     await page.goto('/');
 

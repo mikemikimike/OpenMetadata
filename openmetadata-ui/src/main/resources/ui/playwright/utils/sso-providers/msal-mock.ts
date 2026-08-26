@@ -34,11 +34,24 @@ import { APIRequestContext, expect, Page } from '@playwright/test';
 import {
   applyProviderConfig,
   fetchSecurityConfig,
+  mintAdminRestoreToken,
   restoreSecurityConfig,
 } from '../ssoAuth';
 import { SsoBrokenConfigureResult, SsoProviderFixture } from './fixture';
 import { forceTokenExpiry } from './force-token-expiry';
 import { mintMockJwt } from './mock-token';
+
+// The `configureBackend` step mints an admin Personal Access Token here
+// (before the provider swap) and `performLogin` reads it back. A PAT
+// carries no `sessionId`, so `JwtFilter.validateSessionBoundToken`
+// short-circuits before the provider check — meaning it stays valid
+// after the config swap to Azure/MSAL. It's also signed by OM's own
+// JWKS, which we keep in `publicKeyUrls` on every fixture — so
+// `/users/loggedInUser` returns 200 instead of 401 on the mocked
+// login. Without this, the mock JWT (via `mintMockJwt`) is signed
+// with a throwaway key the server rejects and the sidebar never
+// renders — every scenario 1-6 timed out on this leg pre-round-10.
+let adminPat: string | null = null;
 
 // Deterministic identity for the mocked login. Matches an admin the seeded
 // database recognises so the /users/loggedInUser fetch succeeds after
@@ -101,13 +114,22 @@ const buildBrokenConfig = () => {
  * Runs as a page init script so it fires before *any* app JS — including the
  * AuthCoordinator's cold-load check that reads the token out of storage.
  */
-const installMsalMock = async (page: Page): Promise<void> => {
-  const idToken = mintMockJwt({
-    email: MOCK_EMAIL,
-    name: MOCK_NAME,
-    sub: MOCK_SUB,
-    expInSeconds: TOKEN_LIFETIME_SECONDS,
-  });
+const installMsalMock = async (
+  page: Page,
+  overrideIdToken?: string
+): Promise<void> => {
+  // Prefer the real admin PAT minted in `configureBackend` — it's signed
+  // by OM's own JWKS so `/users/loggedInUser` accepts it. Fall back to the
+  // mock-minted throwaway JWT only for tests that call `installMsalMock`
+  // outside the scenario matrix (none today; the fallback is defensive).
+  const idToken =
+    overrideIdToken ??
+    mintMockJwt({
+      email: MOCK_EMAIL,
+      name: MOCK_NAME,
+      sub: MOCK_SUB,
+      expInSeconds: TOKEN_LIFETIME_SECONDS,
+    });
 
   await page.addInitScript(
     ({ idToken, email, name, sub, lifetimeSeconds, tenantId }) => {
@@ -219,6 +241,14 @@ export const msalMockProviderFixture: SsoProviderFixture = {
   signInButtonPattern: /sign in with (azure|microsoft|sso)/i,
 
   async configureBackend(apiContext: APIRequestContext) {
+    // Mint a PAT BEFORE the swap (see the module-level comment). Non-fatal:
+    // if it fails, `performLogin` falls back to the throwaway mock JWT and
+    // the sidebar-timeout re-appears, which is what we had pre-round-10.
+    try {
+      adminPat = await mintAdminRestoreToken(apiContext);
+    } catch {
+      adminPat = null;
+    }
     const snapshot = await fetchSecurityConfig(apiContext);
     await applyProviderConfig(apiContext, snapshot, buildValidConfig());
 
@@ -246,8 +276,11 @@ export const msalMockProviderFixture: SsoProviderFixture = {
   async performLogin(page: Page) {
     // The mock must be installed *before* the first navigation so the
     // AuthCoordinator's cold-load hook sees both `__omTestMsal` and the
-    // seeded token on its very first read.
-    await installMsalMock(page);
+    // seeded token on its very first read. Pass in the admin PAT minted
+    // in `configureBackend` so the SPA-side JWT the server actually
+    // sees is signed by OM's own JWKS — the mock-minted JWT gets
+    // rejected on `/users/loggedInUser` (bad signature).
+    await installMsalMock(page, adminPat ?? undefined);
 
     await page.goto('/');
 
