@@ -621,9 +621,16 @@ services:
       - sso-test
 
   # OpenLDAP directory used by the LDAP SSO Playwright fixture. Seeded from
-  # ./openldap/bootstrap.ldif — one org + one authenticatable test user. Only
-  # spun up under the sso-playwright profile so `docker compose up` on the
-  # base stack does not pay for an unused directory.
+  # ./openldap/bootstrap.ldif — one org + one authenticatable test user.
+  #
+  # OPT-IN ONLY (see `profiles:` at the bottom of this block). A bare
+  # `docker compose up` does NOT start this service — it is inert unless
+  # you opt into it explicitly:
+  #
+  #     docker compose --profile sso-playwright up openldap    # ad-hoc
+  #     COMPOSE_PROFILES=sso-playwright docker compose up      # session-wide
+  #
+  # The SSO Playwright leg passes the profile flag; nothing else does.
   openldap:
     # bitnami/openldap:2.6.7 was removed from the primary Docker Hub org
     # after Bitnami moved older tags to `bitnamilegacy`. Point at that
@@ -647,6 +654,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    # ── OPT-IN GATE ─────────────────────────────────────────────────────
+    # Docker Compose skips any service that declares a profile unless that
+    # profile is explicitly enabled at CLI time. So this container is
+    # inert on a default stack boot.
     profiles:
       - sso-playwright
     networks:

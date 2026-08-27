@@ -23,6 +23,8 @@ on:
   # and the report surfaces the reason.
   pull_request:
     paths:
+      # UI-side auth surface — components, utils, and the state store that
+      # drive the login/refresh flow this matrix exercises.
       - 'openmetadata-ui/src/main/resources/ui/src/components/Auth/**'
       - 'openmetadata-ui/src/main/resources/ui/src/utils/Auth/**'
       - 'openmetadata-ui/src/main/resources/ui/src/hooks/useApplicationStore.ts'
@@ -30,8 +32,24 @@ on:
       - 'openmetadata-ui/src/main/resources/ui/src/index.tsx'
       - 'openmetadata-ui/src/main/resources/ui/playwright/e2e/Auth/**'
       - 'openmetadata-ui/src/main/resources/ui/playwright/utils/sso-providers/**'
+      # Backend auth surface — JwtFilter, code-flow / SAML / basic / LDAP
+      # authenticators, the public /system/config/auth endpoint, and the
+      # authenticator-handler factory that dispatches the login/refresh
+      # servlets the SPA calls.
+      - 'openmetadata-service/src/main/java/org/openmetadata/service/security/**'
+      - 'openmetadata-service/src/main/java/org/openmetadata/service/resources/system/ConfigResource.java'
+      # Schema-first source of truth for auth types (authentication,
+      # authorizer, SAML/OIDC client configs). A schema change regenerates
+      # POJOs the BE serves and TS types the SPA consumes.
+      - 'openmetadata-spec/src/main/resources/json/schema/configuration/authenticationConfiguration.json'
+      - 'openmetadata-spec/src/main/resources/json/schema/configuration/authorizerConfiguration.json'
+      - 'openmetadata-spec/src/main/resources/json/schema/auth/**'
+      - 'openmetadata-spec/src/main/resources/json/schema/security/**'
+      # Test-env plumbing: compose file wires the KC/OpenLDAP services the
+      # matrix depends on; the workflow's own edits should re-run itself.
       - 'docker/development/docker-compose.yml'
       - 'docker/development/openldap/**'
+      - 'docker/local-sso/**'
       - '.github/workflows/playwright-sso-login-nightly.yml'
   workflow_dispatch:
     inputs:
