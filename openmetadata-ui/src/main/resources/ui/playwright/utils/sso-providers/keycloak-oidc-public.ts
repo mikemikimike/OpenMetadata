@@ -181,16 +181,32 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
     // form so scenario 1 finishes and the user persists for scenarios
     // 2-6. Confidential OIDC skips this because BE already created the
     // user during code exchange.
+    // Race between the sidebar (user already exists → straight to authed
+    // shell) and the signup Create button (fresh user → SPA navigates to
+    // /signup with token claims pre-filled). `Locator.isVisible()` doesn't
+    // wait — it snapshots — so use a wait on either surface. The
+    // create-button state assertion is what actually blocks until the SPA
+    // finishes processing /callback and mounts the signup route; the
+    // previous 5s isVisible poll returned false while the SPA was still on
+    // /callback, and the signup completion never ran.
+    const sidebarLocator = page.getByTestId('app-bar-item-my-data');
+    const createButton = page.getByTestId('create-button');
     const submissionPending = page
       .waitForResponse(
         (resp) => resp.url().includes('/api/v1/users') && resp.status() < 400
       )
       .catch(() => undefined);
-    const signupVisible = await page
-      .getByTestId('create-button')
-      .isVisible({ timeout: 5_000 })
-      .catch(() => false);
-    if (signupVisible) {
+    const signupAppeared = await Promise.race([
+      createButton.waitFor({ state: 'visible', timeout: 30_000 }).then(
+        () => true,
+        () => false
+      ),
+      sidebarLocator.waitFor({ state: 'visible', timeout: 30_000 }).then(
+        () => false,
+        () => false
+      ),
+    ]);
+    if (signupAppeared) {
       // displayName is required; the SPA pre-fills it from token claims but
       // the KC realm's user has no given_name claim, so fill deterministically.
       const fullNameInput = page.getByTestId('full-name-input');
@@ -198,7 +214,7 @@ export const keycloakOidcPublicProviderFixture: SsoProviderFixture = {
       if (!currentName) {
         await fullNameInput.fill('Azure Saml');
       }
-      await page.getByTestId('create-button').click();
+      await createButton.click();
       await submissionPending;
     }
 
