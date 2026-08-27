@@ -149,25 +149,27 @@ const installMsalMock = async (
       // the authenticator actually calls. Everything else is intentionally
       // absent so an unmocked path throws loudly rather than silently
       // succeeding with `undefined`.
+      // `parseMSALResponse` in AuthProvider.util destructures `scopes` and
+      // calls `scopes.join(',')` unconditionally, so every `AuthenticationResult`
+      // the mock returns MUST include the field. Previously we omitted it,
+      // which threw `undefined.join is not a function` inside MsalAuthenticator's
+      // `handleRedirect` -> caught -> `handleFailedLogin()` -> `navigate(SIGNIN)`.
+      // Scenario 1 raced and caught the brief pre-throw authenticated frame
+      // where sidebar was visible; scenarios 2/4/6 did not. Reuse a single
+      // constant so the shape stays consistent across every mock method.
+      const RESPONSE_SCOPES = ['openid', 'profile', 'email'];
+      const mintResponse = () => ({
+        idToken,
+        accessToken: idToken,
+        account,
+        expiresOn: mintFreshExpiresOn(),
+        scopes: RESPONSE_SCOPES,
+      });
+
       const instance = {
-        handleRedirectPromise: async () => ({
-          idToken,
-          accessToken: idToken,
-          account,
-          expiresOn: mintFreshExpiresOn(),
-        }),
-        acquireTokenSilent: async () => ({
-          idToken,
-          accessToken: idToken,
-          account,
-          expiresOn: mintFreshExpiresOn(),
-        }),
-        acquireTokenPopup: async () => ({
-          idToken,
-          accessToken: idToken,
-          account,
-          expiresOn: mintFreshExpiresOn(),
-        }),
+        handleRedirectPromise: async () => mintResponse(),
+        acquireTokenSilent: async () => mintResponse(),
+        acquireTokenPopup: async () => mintResponse(),
         loginRedirect: async () => {
           // Simulate the return-from-IdP hop — the router picks up `/callback`
           // and the AuthProvider's redirect-completion effect finishes login.
@@ -176,12 +178,7 @@ const installMsalMock = async (
 
           return undefined;
         },
-        loginPopup: async () => ({
-          idToken,
-          accessToken: idToken,
-          account,
-          expiresOn: mintFreshExpiresOn(),
-        }),
+        loginPopup: async () => mintResponse(),
         // No-ops the authenticator's `useEffect` chain expects.
         initialize: async () => undefined,
         addEventCallback: () => 'mock-event-callback-id',
