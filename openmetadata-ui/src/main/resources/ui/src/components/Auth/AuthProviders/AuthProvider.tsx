@@ -83,7 +83,6 @@ import { getLoggedInUser, getUserPreferences } from '../../../rest/userAPI';
 import applicationRoutesClass from '../../../utils/ApplicationRoutesClassBase';
 import { authCoordinator } from '../../../utils/Auth/AuthCoordinator';
 import {
-  AuthFieldError,
   getAuthConfig,
   getUrlPathnameExpiry,
   getUserManagerConfig,
@@ -107,8 +106,11 @@ import {
   LazyOidcAuthenticator,
   LazyOktaAuthenticator,
 } from '../AppAuthenticators/LazyAuthenticators';
-import ConfigErrorPage from '../ConfigErrorPage';
-import { AuthenticatorRef, OidcUser } from './AuthProvider.interface';
+import {
+  AuthenticationConfigurationWithScope,
+  AuthenticatorRef,
+  OidcUser,
+} from './AuthProvider.interface';
 import {
   LazyAuth0ProviderWrapper,
   LazyBasicAuthProviderWrapper,
@@ -244,14 +246,6 @@ export const AuthProvider = ({
   const { t } = useTranslation();
 
   const [msalInstance, setMsalInstance] = useState<IPublicClientApplication>();
-
-  // Set to a non-empty array when `validateAuthFieldsDetailed` finds one or
-  // more required fields missing during `fetchAuthConfig`. Rendering short-
-  // circuits to <ConfigErrorPage /> in that case — we never spin up an
-  // authenticator against a known-bad config, since that would silently
-  // redirect the user to the IdP with obviously-broken parameters (e.g. an
-  // empty `client_id`) and surface as an opaque provider-side error.
-  const [configErrors, setConfigErrors] = useState<AuthFieldError[]>([]);
 
   const authenticatorRef = useRef<AuthenticatorRef>(null);
 
@@ -661,10 +655,6 @@ export const AuthProvider = ({
   };
 
   const fetchAuthConfig = async () => {
-    // Clear any errors from a previous attempt so the Retry button on
-    // <ConfigErrorPage /> can transition back to the normal render path if
-    // the admin has fixed the config in between.
-    setConfigErrors([]);
     try {
       const [authConfig, authorizerConfig] = await Promise.all([
         fetchAuthenticationConfig(),
@@ -688,14 +678,19 @@ export const AuthProvider = ({
           );
           const configJson = getAuthConfig(authConfig);
           if (!validation.valid) {
-            // Short-circuit: never proceed to create an authenticator, never
-            // redirect to the IdP with a broken config. The user sees
-            // <ConfigErrorPage /> instead and can retry after the admin
-            // fixes the config on the server.
-            setConfigErrors(validation.errors);
-            setApplicationLoading(false);
-
-            return;
+            // Surface the misconfiguration with a toast — the SPA still
+            // proceeds to render whatever the current provider allows so
+            // the admin isn't locked out of the shell entirely (per
+            // conductor review). Any downstream SDK failure with the
+            // empty fields surfaces its own error.
+            const missing = validation.errors
+              .map((error) => error.field)
+              .join(', ');
+            showErrorToast(
+              t('message.auth-configuration-missing-fields', {
+                fields: missing,
+              })
+            );
           }
           setJwtPrincipalClaims(authConfig.jwtPrincipalClaims);
           setJwtPrincipalClaimsMapping(authConfig.jwtPrincipalClaimsMapping);
@@ -859,18 +854,6 @@ export const AuthProvider = ({
   const isConfigLoading =
     !authConfig ||
     (authConfig.provider === AuthProviderEnum.Azure && !msalInstance);
-
-  // Config-error gate takes precedence over the loader and the authenticator
-  // tree: if the server sent us a config that's missing required fields, we
-  // never mount an authenticator, and the Retry button re-runs
-  // `fetchAuthConfig` to pick up any admin-side fixes.
-  if (configErrors.length > 0) {
-    return (
-      <AuthContext.Provider value={contextValues}>
-        <ConfigErrorPage errors={configErrors} onRetry={fetchAuthConfig} />
-      </AuthContext.Provider>
-    );
-  }
 
   return (
     <AuthContext.Provider value={contextValues}>

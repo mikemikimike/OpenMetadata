@@ -446,130 +446,14 @@ for (const fixture of FIXTURES) {
         expect(largeChunks).toEqual([]);
       });
 
-      // Scenario 8 — validateAuthFieldsDetailed short-circuits AuthProvider
-      // when the backend advertises a broken config: ConfigErrorPage renders
-      // and NO /authorize request is fired at the IdP. Guards against a
-      // regression where the guard is removed and the user gets bounced
-      // through a half-configured IdP.
-      test('broken config renders ConfigErrorPage before IdP redirect', async ({
-        page,
-      }) => {
-        // Some providers can't produce a client-invalid-yet-server-valid
-        // config (Basic: validator only requires `provider`; LDAP: server
-        // `@NotNull` on `ldapConfiguration.host` rejects both empty and
-        // delete). See SsoProviderFixture.supportsBrokenConfigCheck.
-        if (!fixture.supportsBrokenConfigCheck) {
-          test.skip(
-            true,
-            `${fixture.slug} has no client-invalid-server-valid config path`
-          );
-
-          return;
-        }
-        // `sharedApiContext` is session-bound and 401s once the provider
-        // was swapped in beforeAll (JwtFilter.validateSessionProviderIsCurrent).
-        // Build a fresh PAT-based context from the token minted before the
-        // swap — see `mintAdminRestoreToken` in ssoAuth.ts.
-        if (!sharedRestoreToken) {
-          test.skip(true, 'PAT-based admin context not initialized');
-
-          return;
-        }
-        const cfgContext = await getAuthContext(sharedRestoreToken);
-        const broken = await fixture.configureBrokenBackend(cfgContext);
-        const restoreBroken = broken.restore;
-
-        try {
-          // Track any /authorize or IdP-side call — none should fire.
-          let idpCalled = false;
-          page.on('request', (req) => {
-            const url = req.url();
-            if (
-              /\/authorize|\/oauth2|\/saml|\/openid-configuration/.test(url) &&
-              !url.includes('localhost:8585') // ignore our own JWKS
-            ) {
-              idpCalled = true;
-            }
-          });
-
-          await page.goto('/signin');
-          // ConfigErrorPage renders under AuthProvider's short-circuit. Match
-          // by the heading role — text goes through i18n so we assert on the
-          // "config" substring for stability across locales.
-          await expect(
-            page.getByRole('heading', { name: /config/i })
-          ).toBeVisible({ timeout: 20_000 });
-          expect(idpCalled).toBe(false);
-        } finally {
-          await restoreBroken();
-          // Restore the valid config so subsequent scenarios keep passing.
-          // Chain its restore into the outer `restoreConfig` closure so the
-          // `afterAll` teardown still works.
-          const good = await fixture.configureBackend(cfgContext);
-          restoreConfig = good.restore;
-          await cfgContext.dispose();
-        }
-      });
-
-      // Scenario 9 — validateAuthFieldsDetailed emits a `[AuthConfig] ...`
-      // console.warn naming the specific offending field. The fixture owns
-      // the expected pattern (each provider misconfigures its own field),
-      // so we assert the pattern shows up in at least one warn line.
-      test('broken config surfaces the specific field in a console.warn', async ({
-        page,
-      }) => {
-        // Same reason as scenario 8 — some providers can't produce a
-        // client-invalid-yet-server-valid config.
-        if (!fixture.supportsBrokenConfigCheck) {
-          test.skip(
-            true,
-            `${fixture.slug} has no client-invalid-server-valid config path`
-          );
-
-          return;
-        }
-        // Same rationale as scenario 8 — `sharedApiContext` is
-        // session-bound and 401s after the provider swap. Use the
-        // pre-swap PAT to authenticate config writes.
-        if (!sharedRestoreToken) {
-          test.skip(true, 'PAT-based admin context not initialized');
-
-          return;
-        }
-        const cfgContext = await getAuthContext(sharedRestoreToken);
-        const broken = await fixture.configureBrokenBackend(cfgContext);
-        const restoreBroken = broken.restore;
-        const expectedPattern = broken.expectedWarningPattern;
-
-        try {
-          const warnings: string[] = [];
-          page.on('console', (msg) => {
-            if (msg.type() === 'warning') {
-              warnings.push(msg.text());
-            }
-          });
-
-          await page.goto('/signin');
-          await expect(
-            page.getByRole('heading', { name: /config/i })
-          ).toBeVisible({ timeout: 20_000 });
-
-          // At least one warn line must match the fixture's expected pattern.
-          const authConfigWarnings = warnings.filter((w) =>
-            w.includes('[AuthConfig]')
-          );
-
-          expect(authConfigWarnings.length).toBeGreaterThan(0);
-          expect(authConfigWarnings.some((w) => expectedPattern.test(w))).toBe(
-            true
-          );
-        } finally {
-          await restoreBroken();
-          const good = await fixture.configureBackend(cfgContext);
-          restoreConfig = good.restore;
-          await cfgContext.dispose();
-        }
-      });
+      // Scenarios 8 & 9 previously asserted a ConfigErrorPage short-circuit
+      // that hard-blocked the whole UI on any missing top-level field. Per
+      // conductor review the block was replaced with a toast that lets the
+      // SPA render normally, so those page-render + no-IdP-redirect
+      // assertions no longer apply. The validator itself still logs
+      // `[AuthConfig] Missing config value: <field>` via console.warn — a
+      // dedicated unit test in AuthProvider.test.tsx covers that surface,
+      // which doesn't need a full docker-compose Playwright leg.
     }
   );
 }

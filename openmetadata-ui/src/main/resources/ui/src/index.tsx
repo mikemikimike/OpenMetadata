@@ -14,7 +14,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import SilentCallback from './components/Auth/SilentCallback';
-import { APP_ROUTER_ROUTES } from './constants/router.constants';
+import { isSilentCallbackRoute } from './components/Auth/SilentCallback/isSilentCallbackRoute';
 import { getBasePath } from './utils/HistoryUtils';
 import { isSsoTestLoginPopup } from './utils/SsoTestLoginPopup';
 
@@ -50,32 +50,20 @@ if (!container) {
   throw new Error('Failed to find the root element');
 }
 
-// Silent-renew iframe path: when the current document is the hidden iframe
-// oidc-client uses to refresh tokens, render ONLY the tiny <SilentCallback />
-// component — never mount `<AppRoot />`, and never enter the AuthProvider /
-// AppRouter tree. Doing so previously caused every silent refresh to load
-// the full app inside the iframe just to postMessage a token back to the
-// parent tab. Scenario 7 of SsoScenarios.spec asserts no >500 KB JS chunk
-// loads on this route, so AppRoot and its transitive deps (initCoreI18n,
-// app styles) are dynamically imported below and never pulled into the
-// entry chunk. `startsWith` covers the case where the deploy-time base
-// path is prepended to the pathname.
-const isSilentCallbackRoute = (() => {
-  const path = globalThis.location.pathname;
-  const basePath = getBasePath();
-  const fullPath = basePath
-    ? `${basePath}${APP_ROUTER_ROUTES.SILENT_CALLBACK}`
-    : APP_ROUTER_ROUTES.SILENT_CALLBACK;
+const root = createRoot(container);
+const silentCallbackRoute = isSilentCallbackRoute();
 
-  return path === fullPath || path === APP_ROUTER_ROUTES.SILENT_CALLBACK;
-})();
-
-// The SSO "Test Login" popup returns to the configured callback URL. When this
-// document is that isolated popup, handle the OIDC handshake separately and
-// NEVER mount the app, so the test can't touch the admin's real session. A real
-// login on the same callback URL is not diverted (see isSsoTestLoginPopup).
-if (isSilentCallbackRoute) {
-  const root = createRoot(container);
+// Three mutually-exclusive entry paths, dispatched from a single spot so the
+// bundle graph reflects the intent:
+//
+//   1. Silent-refresh iframe — render the tiny SilentCallback shim and
+//      nothing else. AppRoot + its deps stay off this chunk (scenario 7 of
+//      SsoScenarios.spec caps the JS payload on `/silent-callback`).
+//   2. SSO "Test Login" popup — dynamic import the test-login bootstrap so
+//      it never touches the real AuthProvider or session storage.
+//   3. Regular app boot — dynamic import bootstrapApp, which pulls in
+//      AppRoot, styles, i18n, and the core-components package.
+if (silentCallbackRoute) {
   root.render(
     <React.StrictMode>
       <SilentCallback />
@@ -88,41 +76,14 @@ if (isSilentCallbackRoute) {
     .catch(() => globalThis.close());
 } else {
   recordPlaywrightAppBoot();
-
-  // Full-app path — every heavy dependency is imported dynamically so the
-  // silent-callback branch above never pulls them into the entry chunk.
-  // `initCoreI18n` is kept out of LocalUtil so the core-components package
-  // doesn't leak into files that Playwright's `--list` walks.
-  void (async () => {
-    const [{ initCoreI18n }, { default: i18next }, { default: AppRoot }] =
-      await Promise.all([
-        import('@openmetadata/ui-core-components'),
-        import('./utils/i18next/LocalUtil'),
-        import('./AppRoot'),
-        import('./styles/index'),
-      ]);
-
-    // Register the library's `core` i18next namespace. `addResourceBundle` is
-    // safe to call before `i18next.init` resolves — the bundles queue and
-    // become live once init completes.
-    initCoreI18n(i18next);
-
-    const root = createRoot(container);
-
-    root.render(
-      <React.StrictMode>
-        <AppRoot />
-      </React.StrictMode>
-    );
-  })();
+  void import('./bootstrapApp').then(({ bootstrapApp }) => bootstrapApp(root));
 }
 
-// In dev (Vite) the asset-caching service worker only serves stale chunks and
-// fights HMR, so skip registration and proactively unregister any SW left over
-// from a previous production session. Skip SW work entirely on the
-// silent-callback path — the iframe has no need for it and unregistering here
-// would tear down the parent tab's cached assets.
-if (!isSilentCallbackRoute) {
+// Service-worker lifecycle -- registers the asset cache in prod, unregisters
+// any stale one in dev where Vite HMR fights it. Skipped on the
+// silent-callback path: the iframe has no need for the cache, and
+// unregistering there would tear down the parent tab's cached assets.
+if (!silentCallbackRoute) {
   if (import.meta.env.DEV) {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker

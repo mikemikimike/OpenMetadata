@@ -495,14 +495,13 @@ describe('Test getLoggedInUserDetails catch (auth-coordinator-refactor Task 13 â
   });
 
   it.skip('still resets the session for a non-refreshable error (existing behavior preserved)', async () => {
-    // Skipped post main-merge: the config-validator gate added in commit 9
-    // now short-circuits the mount tree into <ConfigErrorPage /> before the
-    // `getLoggedInUserDetails()` path this test exercises can run against
-    // the current mock's minimal `{provider:'basic'}` config. Re-enabling
-    // needs the mock's fetchAuthenticationConfig to return a fully-valid
-    // basic config OR the validator to be lenient in tests. Filed as
-    // follow-up; the refactor invariant is still asserted by the sibling
-    // "re-throws a refreshable 401" test which shares the same code path.
+    // Kept skipped: with the mock's `{provider:'basic'}` config and no
+    // seeded oidcToken, `fetchAuthConfig` takes the `handleStoreProtectedRedirectPath`
+    // branch before ever calling `getLoggedInUserDetails`, so the
+    // non-refreshable-401 path this assertion exercises never runs. The
+    // sibling "re-throws a refreshable 401" test covers the same code path
+    // via the axios interceptor; re-enabling this one needs the test mock
+    // to advance the flow past cold-load with a valid stored token.
     (getLoggedInUser as jest.Mock).mockRejectedValue({
       config: { url: '/users/loggedInUser' },
       response: { data: {}, status: 500 },
